@@ -142,13 +142,40 @@ function emptyInv(){return{date:today(),site:ST.sites[0]||'',vendor:'',inv_no:''
 function emptyExp(){return{date:today(),site:ST.sites[0]||'',vendor:'',category:'工人支出',amount:'',note:''};}
 function emptyPay(){return{date:today(),check_date:'',amount:'',method:'現金收款',note:''};}
 function emptySplit(){return{date:today(),site:'',geo:'',sister:'',note:''};}
-function emptyCompExp(){return{item:'',period:'',amount:'',freq:'每月',note:''};}
+function emptyCompExp(){return{item:'',period:'',amount:'',freq:'每月',note:'';};}
 
-function loadAll(co){
+// 自動新增每月固定公司支出
+function autoAddMonthlyExpenses(co){
+  if(co!=='竑順')return; // 只有竑順需要
+  const now=new Date();
+  const day=now.getDate();
+  if(day!==1)return; // 只在每月1號執行
+  const ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const lastKey=mk(co,'auto_month');
+  const last=store_get(lastKey);
+  if(last===ym)return; // 本月已新增過，不重複
+  const fixed=[
+    {item:'董事長薪水',amount:'50000'},
+    {item:'公司租金',amount:'10000'},
+    {item:'會計費用',amount:'40000'},
+  ];
+  const existing=store_get(mk(co,'company_exp'))||[];
+  const toAdd=fixed.map(f=>({
+    id:Date.now()+Math.random(),
+    item:f.item,period:ym,amount:f.amount,freq:'每月',note:`${ym} 自動新增`
+  }));
+  const updated=[...toAdd,...existing];
+  store_set(mk(co,'company_exp'),updated);
+  store_set(lastKey,ym);
+}function loadAll(co){
   const p={co,view:'dashboard',modal:null,checkFilter:'全部',expFilter:'全部',filterSite:'全部',splitSite:'全部',search:''};
   [['invoices','invoices',[]],['expenses','expItems',[]],['company_exp','companyExp',[]],
    ['splits','splits',[]],['sites','sites',DEF_SITES],['vendors','vendors',DEF_VENDORS]
   ].forEach(([k,f,d])=>{const v=store_get(mk(co,k));p[f]=v!==null?v:[...d];});
+  autoAddMonthlyExpenses(co); // 自動新增每月固定支出
+  // 重新讀取（因為 auto 可能剛寫入）
+  const ce=store_get(mk(co,'company_exp'));
+  if(ce)p.companyExp=ce;
   upd(p);
 }
 
@@ -239,7 +266,9 @@ function siteSelectUI(val,onChangeFn){
   const wrap=div({style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}});
   if(ST.addingSite){
     const inp=make('input',{type:'text',placeholder:'新工地名稱...',style:{flex:1}});
-    const ok=mkBtn('確認','#1D9E75','#fff',()=>addSiteItem(inp.value,onChangeFn));
+    const doAdd=function(){addSiteItem(inp.value,onChangeFn);};
+    inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing)doAdd();});
+    const ok=mkBtn('確認','#1D9E75','#fff',doAdd);
     const cx=ghostBtn('✕',()=>upd({addingSite:false}));
     wrap.appendChild(inp);wrap.appendChild(ok);wrap.appendChild(cx);
   }else{
@@ -255,7 +284,9 @@ function vendorSelectUI(val,onChangeFn){
   const wrap=div({style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}});
   if(ST.addingVendor){
     const inp=make('input',{type:'text',placeholder:'新廠商名稱...',style:{flex:1}});
-    const ok=mkBtn('確認','#1D9E75','#fff',()=>addVendorItem(inp.value,onChangeFn));
+    const doAdd=function(){addVendorItem(inp.value,onChangeFn);};
+    inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.isComposing)doAdd();});
+    const ok=mkBtn('確認','#1D9E75','#fff',doAdd);
     const cx=ghostBtn('✕',()=>upd({addingVendor:false}));
     wrap.appendChild(inp);wrap.appendChild(ok);wrap.appendChild(cx);
   }else{

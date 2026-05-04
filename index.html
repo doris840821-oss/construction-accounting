@@ -1,770 +1,769 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>竑順／吉諦 工地帳務管理</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>竑順／吉諦 工地帳務管理</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f7;color:#1a1a1a;}
+input,select,textarea{font-family:inherit;font-size:13px;border:0.5px solid #ccc;border-radius:6px;padding:6px 9px;background:#fff;color:#1a1a1a;width:100%;box-sizing:border-box;}
+button{cursor:pointer;font-family:inherit;}
+.card{background:#fff;border:0.5px solid #e0e0e0;border-radius:12px;padding:14px 16px;margin-bottom:12px;}
+.mg{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px;}
+.tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.tbl th{text-align:left;padding:7px 9px;border-bottom:0.5px solid #e0e0e0;color:#888;font-weight:500;font-size:11px;white-space:nowrap;}
+.tbl td{padding:8px 9px;border-bottom:0.5px solid #e0e0e0;vertical-align:middle;}
+.tbl tr:hover td{background:#f5f5f7;}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:100;}
+.modal{background:#fff;border-radius:12px;padding:22px;width:min(560px,95vw);max-height:90vh;overflow-y:auto;}
+.modal-sm{background:#fff;border-radius:12px;padding:22px;width:min(420px,95vw);max-height:90vh;overflow-y:auto;}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.hdr{background:#fff;border-bottom:0.5px solid #e0e0e0;padding:0 14px;display:flex;align-items:center;gap:8px;min-height:50px;flex-wrap:wrap;}
+.main{padding:14px;max-width:1100px;margin:0 auto;}
+</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+<div id="app"></div>
+<script>
+const fmt=n=>isNaN(n)||n===''?'0':Number(n).toLocaleString('zh-TW');
+const today=()=>new Date().toISOString().split('T')[0];
+const mk=(co,k)=>`hs26_${co}_${k}`;
+const DEF_SITES=['板橋遠雄'];
+const DEF_VENDORS=['吉諦','哲在'];
+const CO_COLOR={'竑順':'#1D9E75','吉諦':'#378ADD'};
+const EXPENSE_CATS=['工人支出','五金材料支出'];
+const FREQ_OPTS=['每月','每兩月','每季','每年','單次'];
+const PAY_METHODS=['現金收款','銀行匯款','支票'];
 
-    const COMPANIES = ["竑順", "吉諦"];
-    const EXPENSE_CATS = ["工人支出", "五金材料支出"];
-    const FREQ_OPTS = ["每月", "每兩月", "每季", "每年", "單次"];
-    const PAY_METHODS = ["現金收款", "銀行匯款", "支票"];
+function store_get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}}
+function store_set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 
-    const fmt = n => isNaN(n) || n === "" ? "0" : Number(n).toLocaleString("zh-TW");
-    const today = () => new Date().toISOString().split("T")[0];
-    const mk = (co, key) => `hs26_${co}_${key}`;
+function make(tag,props,...kids){
+  const e=document.createElement(tag);
+  if(props)Object.keys(props).forEach(k=>{
+    if(k==='class')e.className=props[k];
+    else if(k==='style'&&typeof props[k]==='object')Object.assign(e.style,props[k]);
+    else if(k==='onclick')e.addEventListener('click',props[k]);
+    else e[k]=props[k];
+  });
+  kids.flat(9).forEach(c=>{
+    if(c==null)return;
+    e.appendChild(c instanceof Node?c:document.createTextNode(String(c)));
+  });
+  return e;
+}
+const div=(p,...k)=>make('div',p,...k);
+const span=(p,...k)=>make('span',p,...k);
+const td=(p,...k)=>make('td',p,...k);
+const th=(p,...k)=>make('th',p,...k);
+const tr=(...k)=>make('tr',null,...k);
 
-    const DEFAULT_SITES = ["板橋遠雄"];
-    const DEFAULT_VENDORS = ["吉諦", "哲在"];
+function mkBtn(text,bg,color,onclick,extra={}){
+  const b=document.createElement('button');
+  b.textContent=text;
+  Object.assign(b.style,{background:bg,color,border:'none',borderRadius:'6px',padding:'6px 12px',fontSize:'12px',fontWeight:'600',whiteSpace:'nowrap',cursor:'pointer',...extra});
+  b.addEventListener('click',onclick);
+  return b;
+}
+function ghostBtn(text,onclick,color='#888'){
+  const b=document.createElement('button');
+  b.textContent=text;
+  Object.assign(b.style,{background:'transparent',border:'0.5px solid #ccc',borderRadius:'6px',padding:'5px 10px',fontSize:'12px',color,cursor:'pointer'});
+  b.addEventListener('click',onclick);
+  return b;
+}
+function smBtn(text,onclick,color='#888'){
+  const b=document.createElement('button');
+  b.textContent=text;
+  Object.assign(b.style,{background:'transparent',border:'0.5px solid #ccc',borderRadius:'6px',padding:'2px 6px',fontSize:'10px',color,cursor:'pointer',marginLeft:'3px'});
+  b.addEventListener('click',onclick);
+  return b;
+}
+function pill(text,active,color,onclick){
+  const b=document.createElement('button');
+  b.textContent=text;
+  Object.assign(b.style,{padding:'5px 14px',borderRadius:'20px',border:'none',fontSize:'12px',fontWeight:active?'600':'400',background:active?color:'#f0f0f0',color:active?'#fff':'#888',cursor:'pointer'});
+  b.addEventListener('click',onclick);
+  return b;
+}
+function metric(label,value,color){
+  const d=div({style:{background:'#f5f5f7',borderRadius:'8px',padding:'11px 13px',borderLeft:`3px solid ${color}`}});
+  d.appendChild(div({style:{fontSize:'11px',color:'#888',marginBottom:'2px'}},label));
+  d.appendChild(div({style:{fontSize:'16px',fontWeight:'600',color}},value));
+  return d;
+}
+function lbl(text){return make('label',{style:{fontSize:'11px',color:'#888',marginBottom:'3px',display:'block'}},text);}
+function field(labelText,inputEl,full=false){
+  const d=div({style:full?{gridColumn:'1/-1'}:{}});
+  d.appendChild(lbl(labelText));
+  d.appendChild(inputEl);
+  return d;
+}
+function mkInp(val,onchange,type='text',ph=''){
+  const e=make('input',{type,value:val||'',placeholder:ph});
+  e.addEventListener('input',ev=>onchange(ev.target.value));
+  return e;
+}
+function mkSel(val,opts,onchange){
+  const e=make('select',{});
+  opts.forEach(([v,t])=>{const o=make('option',{value:v},t||v);if(String(v)===String(val))o.selected=true;e.appendChild(o);});
+  e.addEventListener('change',ev=>onchange(ev.target.value));
+  return e;
+}
+function mkTa(val,onchange,ph=''){
+  const e=make('textarea',{placeholder:ph,style:{height:'50px',resize:'vertical'}},val||'');
+  e.addEventListener('input',ev=>onchange(ev.target.value));
+  return e;
+}
 
-    const storage = {
-      get: (key) => { try { const v = localStorage.getItem(key); return v ? { value: v } : null; } catch { return null; } },
-      set: (key, value) => { try { localStorage.setItem(key, value); return true; } catch { return null; } }
-    };
+// 狀態
+let ST={
+  co:null,view:'dashboard',
+  invoices:[],expItems:[],companyExp:[],splits:[],
+  sites:[...DEF_SITES],vendors:[...DEF_VENDORS],
+  checkFilter:'全部',expFilter:'全部',filterSite:'全部',splitSite:'全部',search:'',
+  modal:null,payModalId:null,
+  editInvId:null,editExpId:null,editCompExpId:null,editSplitId:null,
+  addingSite:false,addingVendor:false,
+  invForm:{},expForm:{},compExpForm:{},payEntry:{},splitForm:{}
+};
+function upd(patch){Object.assign(ST,patch);render();}
+function saveK(k,d){store_set(mk(ST.co,k),d);}
 
-    function App() {
-      const [co, setCo] = useState(null);
-      const [invoices, setInvoices] = useState([]);
-      const [expItems, setExpItems] = useState([]);
-      const [companyExp, setCompanyExp] = useState([]);
-      const [sites, setSites] = useState(DEFAULT_SITES);
-      const [vendors, setVendors] = useState(DEFAULT_VENDORS);
-      const [view, setView] = useState("dashboard");
-      const [loading, setLoading] = useState(false);
+// 直接修改表單值，不重新 render
+function setInvForm(k,v){ST.invForm[k]=v;}
+function setExpForm(k,v){ST.expForm[k]=v;}
+function setPayForm(k,v){ST.payEntry[k]=v;}
+function setCompExpForm(k,v){ST.compExpForm[k]=v;}
+function setSplitForm(k,v){ST.splitForm[k]=v;}
 
-      const [checkFilter, setCheckFilter] = useState("全部");
-      const [expFilter, setExpFilter] = useState("全部");
-      const [filterSite, setFilterSite] = useState("全部");
-      const [search, setSearch] = useState("");
+function emptyInv(){return{date:today(),site:ST.sites[0]||'',vendor:'',inv_no:'',inv_date:'',total_amount:'',discount:'',note:'',payments:[]};}
+function emptyExp(){return{date:today(),site:ST.sites[0]||'',vendor:'',category:'工人支出',amount:'',note:''};}
+function emptyPay(){return{date:today(),check_date:'',amount:'',method:'現金收款',note:''};}
+function emptySplit(){return{date:today(),site:'',geo:'',sister:'',note:''};}
+function emptyCompExp(){return{item:'',period:'',amount:'',freq:'每月',note:''};}
 
-      const [showInvForm, setShowInvForm] = useState(false);
-      const [showExpForm, setShowExpForm] = useState(false);
-      const [showCompExpForm, setShowCompExpForm] = useState(false);
-      const [showPayModal, setShowPayModal] = useState(null);
-      const [editInvId, setEditInvId] = useState(null);
-      const [editExpId, setEditExpId] = useState(null);
-      const [editCompExpId, setEditCompExpId] = useState(null);
+function loadAll(co){
+  const p={co,view:'dashboard',modal:null,checkFilter:'全部',expFilter:'全部',filterSite:'全部',splitSite:'全部',search:''};
+  [['invoices','invoices',[]],['expenses','expItems',[]],['company_exp','companyExp',[]],
+   ['splits','splits',[]],['sites','sites',DEF_SITES],['vendors','vendors',DEF_VENDORS]
+  ].forEach(([k,f,d])=>{const v=store_get(mk(co,k));p[f]=v!==null?v:[...d];});
+  upd(p);
+}
 
-      const [addingSite, setAddingSite] = useState(false);
-      const [addingVendor, setAddingVendor] = useState(false);
-      const [inlineSite, setInlineSite] = useState("");
-      const [inlineVendor, setInlineVendor] = useState("");
+const getNet=r=>Math.max(0,(Number(r.total_amount)||0)-(Number(r.discount)||0));
+const getPaid=r=>(r.payments||[]).reduce((s,p)=>s+(Number(p.amount)||0),0);
+const getReserved=r=>Math.max(0,getNet(r)-getPaid(r));
+const isSettled=r=>getReserved(r)<=0;
 
-      const emptyInv = () => ({ date: today(), site: sites[0] || "", vendor: "", inv_no: "", inv_date: "", total_amount: "", discount: "", note: "", payments: [] });
-      const emptyExp = () => ({ date: today(), site: sites[0] || "", vendor: "", category: "工人支出", amount: "", note: "" });
-      const emptyCompExp = () => ({ item: "", period: "", amount: "", freq: "每月", note: "" });
-      const emptyPay = () => ({ date: today(), check_date: "", amount: "", method: "現金收款", note: "" });
+function siteStats(){
+  const m={};
+  ST.invoices.forEach(r=>{
+    if(!m[r.site])m[r.site]={received:0,reserved:0,invoice:0,worker:0,material:0};
+    m[r.site].received+=getPaid(r);m[r.site].reserved+=getReserved(r);m[r.site].invoice+=Number(r.total_amount)||0;
+  });
+  ST.expItems.forEach(r=>{
+    if(!m[r.site])m[r.site]={received:0,reserved:0,invoice:0,worker:0,material:0};
+    if(r.category==='工人支出')m[r.site].worker+=Number(r.amount)||0;
+    else m[r.site].material+=Number(r.amount)||0;
+  });
+  return m;
+}
 
-      const [invForm, setInvForm] = useState(emptyInv());
-      const [expForm, setExpForm] = useState(emptyExp());
-      const [compExpForm, setCompExpForm] = useState(emptyCompExp());
-      const [payEntry, setPayEntry] = useState(emptyPay());
+// Actions
+function delInvoice(id){if(!confirm('確定刪除此發票？'))return;const invoices=ST.invoices.filter(r=>r.id!==id);saveK('invoices',invoices);upd({invoices});}
+function delPayment(invId,payId){
+  const invoices=ST.invoices.map(r=>{
+    if(r.id!==invId)return r;
+    return Object.assign({},r,{payments:r.payments.filter(p=>p.id!==payId)});
+  });
+  saveK('invoices',invoices);upd({invoices});
+}
+function delExpItem(id){if(!confirm('確定刪除？'))return;const expItems=ST.expItems.filter(r=>r.id!==id);saveK('expenses',expItems);upd({expItems});}
+function delCompExp(id){const companyExp=ST.companyExp.filter(e=>e.id!==id);saveK('company_exp',companyExp);upd({companyExp});}
+function delSplit(id){const splits=ST.splits.filter(s=>s.id!==id);saveK('splits',splits);upd({splits});}
 
-      useEffect(() => { if (co) loadAll(co); }, [co]);
+function saveInvoice(){
+  const f=ST.invForm;
+  if(!f.total_amount||!f.site)return alert('請填寫工地和發票金額');
+  const rec=Object.assign({},f,{id:ST.editInvId||Date.now(),payments:f.payments||[]});
+  const invoices=ST.editInvId?ST.invoices.map(r=>r.id===ST.editInvId?rec:r):[rec,...ST.invoices];
+  saveK('invoices',invoices);upd({invoices,modal:null,editInvId:null});
+}
+function saveExpItem(){
+  const f=ST.expForm;
+  if(!f.amount||!f.site)return alert('請填寫工地和金額');
+  const rec=Object.assign({},f,{id:ST.editExpId||Date.now()});
+  const expItems=ST.editExpId?ST.expItems.map(r=>r.id===ST.editExpId?rec:r):[rec,...ST.expItems];
+  saveK('expenses',expItems);upd({expItems,modal:null,editExpId:null});
+}
+function addPayment(){
+  const f=ST.payEntry;
+  if(!f.amount)return alert('請填寫金額');
+  const invoices=ST.invoices.map(r=>{
+    if(r.id!==ST.payModalId)return r;
+    return Object.assign({},r,{payments:[...(r.payments||[]),Object.assign({},f,{id:Date.now()})]});
+  });
+  saveK('invoices',invoices);upd({invoices,modal:null,payModalId:null,payEntry:emptyPay()});
+}
+function saveCompExp(){
+  const f=ST.compExpForm;
+  if(!f.item||!f.amount)return alert('請填寫項目和金額');
+  const rec=Object.assign({},f,{id:ST.editCompExpId||Date.now()});
+  const companyExp=ST.editCompExpId?ST.companyExp.map(e=>e.id===ST.editCompExpId?rec:e):[rec,...ST.companyExp];
+  saveK('company_exp',companyExp);upd({companyExp,modal:null,editCompExpId:null});
+}
+function saveSplit(){
+  const f=ST.splitForm;
+  if(!f.date)return alert('請填寫日期');
+  const rec=Object.assign({},f,{id:ST.editSplitId||Date.now()});
+  const splits=ST.editSplitId?ST.splits.map(s=>s.id===ST.editSplitId?rec:s):[rec,...ST.splits];
+  saveK('splits',splits);upd({splits,modal:null,editSplitId:null});
+}
 
-      function loadAll(company) {
-        setLoading(true);
-        const defs = [
-          [mk(company, "invoices"), setInvoices, []],
-          [mk(company, "expenses"), setExpItems, []],
-          [mk(company, "company_exp"), setCompanyExp, []],
-          [mk(company, "sites"), setSites, DEFAULT_SITES],
-          [mk(company, "vendors"), setVendors, DEFAULT_VENDORS],
-        ];
-        for (const [key, setter, def] of defs) {
-          try { const r = storage.get(key); setter(r?.value ? JSON.parse(r.value) : def); } catch { setter(def); }
-        }
-        setView("dashboard"); setCheckFilter("全部"); setExpFilter("全部"); setFilterSite("全部"); setSearch("");
-        setLoading(false);
+function addSiteItem(val,cb){
+  const v=val.trim();if(!v)return;
+  const sites=ST.sites.includes(v)?ST.sites:[...ST.sites,v];
+  saveK('sites',sites);cb(v);upd({sites,addingSite:false});
+}
+function addVendorItem(val,cb){
+  const v=val.trim();if(!v)return;
+  const vendors=ST.vendors.includes(v)?ST.vendors:[...ST.vendors,v];
+  saveK('vendors',vendors);cb(v);upd({vendors,addingVendor:false});
+}
+function delSiteItem(x){const sites=ST.sites.filter(s=>s!==x);saveK('sites',sites);upd({sites});}
+function delVendorItem(x){const vendors=ST.vendors.filter(v=>v!==x);saveK('vendors',vendors);upd({vendors});}
+
+function siteSelectUI(val,onChangeFn){
+  const wrap=div({style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}});
+  if(ST.addingSite){
+    const inp=make('input',{type:'text',placeholder:'新工地名稱...',style:{flex:1}});
+    const ok=mkBtn('確認','#1D9E75','#fff',()=>addSiteItem(inp.value,onChangeFn));
+    const cx=ghostBtn('✕',()=>upd({addingSite:false}));
+    wrap.appendChild(inp);wrap.appendChild(ok);wrap.appendChild(cx);
+  }else{
+    const s=mkSel(val,[['','請選擇工地'],...ST.sites.map(x=>[x,x])],onChangeFn);
+    s.style.flex='1';
+    wrap.appendChild(s);
+    wrap.appendChild(ghostBtn('＋ 新增',()=>upd({addingSite:true})));
+    if(val)wrap.appendChild(ghostBtn('刪除',()=>{if(confirm(`確定刪除工地「${val}」？`)){delSiteItem(val);onChangeFn('');}  },'#A32D2D'));
+  }
+  return wrap;
+}
+function vendorSelectUI(val,onChangeFn){
+  const wrap=div({style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}});
+  if(ST.addingVendor){
+    const inp=make('input',{type:'text',placeholder:'新廠商名稱...',style:{flex:1}});
+    const ok=mkBtn('確認','#1D9E75','#fff',()=>addVendorItem(inp.value,onChangeFn));
+    const cx=ghostBtn('✕',()=>upd({addingVendor:false}));
+    wrap.appendChild(inp);wrap.appendChild(ok);wrap.appendChild(cx);
+  }else{
+    const s=mkSel(val,[['','請選擇廠商'],...ST.vendors.map(x=>[x,x])],onChangeFn);
+    s.style.flex='1';
+    wrap.appendChild(s);
+    wrap.appendChild(ghostBtn('＋ 新增',()=>upd({addingVendor:true})));
+    if(val)wrap.appendChild(ghostBtn('刪除',()=>{if(confirm(`確定刪除廠商「${val}」？`)){delVendorItem(val);onChangeFn('');}  },'#A32D2D'));
+  }
+  return wrap;
+}
+
+function modalWrap(inner,onClose){
+  const ov=div({class:'ov'});
+  ov.addEventListener('click',e=>{if(e.target===ov)onClose();});
+  ov.appendChild(inner);
+  return ov;
+}
+
+function renderInvModal(){
+  const accent=CO_COLOR[ST.co];
+  const f=ST.invForm;
+  const box=div({class:'modal'});
+  box.appendChild(div({style:{fontWeight:'700',fontSize:'15px',marginBottom:'16px'}},ST.editInvId?'編輯發票':'新增開出發票'));
+  const fg=div({class:'fg'});
+  fg.appendChild(field('日期',mkInp(f.date,v=>setInvForm('date',v),'date')));
+  fg.appendChild(field('發票號碼',mkInp(f.inv_no,v=>setInvForm('inv_no',v),'text','發票號碼')));
+  fg.appendChild(field('工地',siteSelectUI(f.site,v=>{setInvForm('site',v);}),true));
+  fg.appendChild(field('廠商',vendorSelectUI(f.vendor,v=>{setInvForm('vendor',v);}),true));
+  fg.appendChild(field('發票日期',mkInp(f.inv_date,v=>setInvForm('inv_date',v),'date')));
+  fg.appendChild(field('發票金額',mkInp(f.total_amount,v=>setInvForm('total_amount',v),'number','0')));
+  fg.appendChild(field('折讓金額',mkInp(f.discount,v=>setInvForm('discount',v),'number','0（無折讓可留空）')));
+  box.appendChild(fg);
+  box.appendChild(field('備註',mkTa(f.note,v=>setInvForm('note',v),'備註...')));
+  const row=div({style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'12px'}});
+  row.appendChild(ghostBtn('取消',()=>upd({modal:null})));
+  row.appendChild(mkBtn('儲存',accent,'#fff',saveInvoice));
+  box.appendChild(row);
+  return modalWrap(box,()=>upd({modal:null}));
+}
+
+function renderExpModal(){
+  const f=ST.expForm;
+  const box=div({class:'modal'});
+  box.appendChild(div({style:{fontWeight:'700',fontSize:'15px',marginBottom:'16px'}},ST.editExpId?'編輯支出':'新增支出'));
+  const fg=div({class:'fg'});
+  fg.appendChild(field('日期',mkInp(f.date,v=>setExpForm('date',v),'date')));
+  fg.appendChild(field('費用類別',mkSel(f.category,EXPENSE_CATS.map(c=>[c,c]),v=>setExpForm('category',v))));
+  fg.appendChild(field('工地',siteSelectUI(f.site,v=>{setExpForm('site',v);}),true));
+  fg.appendChild(field('廠商',vendorSelectUI(f.vendor,v=>{setExpForm('vendor',v);}),true));
+  fg.appendChild(field('金額',mkInp(f.amount,v=>setExpForm('amount',v),'number','0')));
+  box.appendChild(fg);
+  box.appendChild(field('備註',mkTa(f.note,v=>setExpForm('note',v),'備註...')));
+  const row=div({style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'12px'}});
+  row.appendChild(ghostBtn('取消',()=>upd({modal:null})));
+  row.appendChild(mkBtn('儲存','#E24B4A','#fff',saveExpItem));
+  box.appendChild(row);
+  return modalWrap(box,()=>upd({modal:null}));
+}
+
+function renderPayModal(){
+  const accent=CO_COLOR[ST.co];
+  const inv=ST.invoices.find(r=>r.id===ST.payModalId);
+  if(!inv)return null;
+  const f=ST.payEntry;
+  const box=div({class:'modal-sm'});
+  box.appendChild(div({style:{fontWeight:'700',fontSize:'15px',marginBottom:'4px'}},'新增收款記錄'));
+  box.appendChild(div({style:{fontSize:'12px',color:'#888',marginBottom:'14px'}},`${inv.vendor||inv.site} · 尚未收款 NT$ ${fmt(getReserved(inv))}`));
+  const grid=div({style:{display:'grid',gap:'10px'}});
+  grid.appendChild(field('收款日期',mkInp(f.date,v=>setPayForm('date',v),'date')));
+  grid.appendChild(field('匯款／支票日期',mkInp(f.check_date,v=>setPayForm('check_date',v),'date')));
+  grid.appendChild(field('收款金額',mkInp(f.amount,v=>setPayForm('amount',v),'number',`最多 NT$ ${fmt(getReserved(inv))}`)));
+  grid.appendChild(field('收款方式',mkSel(f.method,PAY_METHODS.map(m=>[m,m]),v=>setPayForm('method',v))));
+  grid.appendChild(field('備註',mkInp(f.note,v=>setPayForm('note',v),'text','備註...')));
+  box.appendChild(grid);
+  const row=div({style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'14px'}});
+  row.appendChild(ghostBtn('取消',()=>upd({modal:null,payModalId:null})));
+  row.appendChild(mkBtn('確認收款',accent,'#fff',addPayment));
+  box.appendChild(row);
+  return modalWrap(box,()=>upd({modal:null,payModalId:null}));
+}
+
+function renderCompExpModal(){
+  const accent=CO_COLOR[ST.co];
+  const f=ST.compExpForm;
+  const box=div({class:'modal-sm'});
+  box.appendChild(div({style:{fontWeight:'700',fontSize:'15px',marginBottom:'14px'}},ST.editCompExpId?'編輯公司支出':'新增公司支出'));
+  const grid=div({style:{display:'grid',gap:'10px'}});
+  grid.appendChild(field('項目',mkInp(f.item,v=>setCompExpForm('item',v),'text','例：董事長薪水')));
+  grid.appendChild(field('區間',mkInp(f.period,v=>setCompExpForm('period',v),'text','例：2026-01')));
+  grid.appendChild(field('金額',mkInp(f.amount,v=>setCompExpForm('amount',v),'number','0')));
+  grid.appendChild(field('頻率',mkSel(f.freq,FREQ_OPTS.map(x=>[x,x]),v=>setCompExpForm('freq',v))));
+  grid.appendChild(field('備註',mkInp(f.note,v=>setCompExpForm('note',v),'text','備註...')));
+  box.appendChild(grid);
+  const row=div({style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'14px'}});
+  row.appendChild(ghostBtn('取消',()=>upd({modal:null})));
+  row.appendChild(mkBtn('儲存',accent,'#fff',saveCompExp));
+  box.appendChild(row);
+  return modalWrap(box,()=>upd({modal:null}));
+}
+
+function renderSplitModal(){
+  const accent=CO_COLOR[ST.co];
+  const f=ST.splitForm;
+  const box=div({class:'modal-sm'});
+  box.appendChild(div({style:{fontWeight:'700',fontSize:'15px',marginBottom:'16px'}},ST.editSplitId?'編輯分帳':'新增分帳記錄'));
+  const grid=div({style:{display:'grid',gap:'10px'}});
+  grid.appendChild(field('日期',mkInp(f.date,v=>setSplitForm('date',v),'date')));
+  grid.appendChild(field('工地',mkSel(f.site||'',[['','請選擇工地'],...ST.sites.map(x=>[x,x])],v=>setSplitForm('site',v))));
+  grid.appendChild(field('分給吉哥（元）',mkInp(f.geo,v=>setSplitForm('geo',v),'number','0')));
+  grid.appendChild(field('分給姐姐（元）',mkInp(f.sister,v=>setSplitForm('sister',v),'number','0')));
+  grid.appendChild(field('備註',mkInp(f.note,v=>setSplitForm('note',v),'text','例：板橋遠雄第一次分帳')));
+  box.appendChild(grid);
+  const row=div({style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'16px'}});
+  row.appendChild(ghostBtn('取消',()=>upd({modal:null})));
+  row.appendChild(mkBtn('儲存',accent,'#fff',saveSplit));
+  box.appendChild(row);
+  return modalWrap(box,()=>upd({modal:null}));
+}
+
+function exportCSV(){
+  const{co,invoices,expItems,companyExp,splits}=ST;
+  const rows=[['#類型','日期','工地','廠商','發票號碼','發票日期','發票金額','折讓','備註','收款日期','票期日期','收款金額','收款方式','收款備註']];
+  invoices.forEach(inv=>{
+    if(!(inv.payments||[]).length)rows.push(['發票',inv.date,inv.site,inv.vendor||'',inv.inv_no||'',inv.inv_date||'',inv.total_amount||'',inv.discount||'',inv.note||'','','','','','']);
+    else(inv.payments||[]).forEach((p,i)=>rows.push([i===0?'發票':'',i===0?inv.date:'',i===0?inv.site:'',i===0?(inv.vendor||''):'',i===0?(inv.inv_no||''):'',i===0?(inv.inv_date||''):'',i===0?(inv.total_amount||''):'',i===0?(inv.discount||''):'',i===0?(inv.note||''):'',p.date||'',p.check_date||'',p.amount||'',p.method||'',p.note||'']));
+  });
+  rows.push([]);rows.push(['#類型','日期','工地','廠商','費用類別','金額','備註']);
+  expItems.forEach(e=>rows.push(['支出',e.date,e.site,e.vendor||'',e.category,e.amount||'',e.note||'']));
+  if(co==='竑順'&&companyExp.length){rows.push([]);rows.push(['#類型','項目','區間','金額','頻率','備註']);companyExp.forEach(e=>rows.push(['公司支出',e.item,e.period||'',e.amount||'',e.freq,e.note||'']));}
+  if(co==='吉諦'&&splits.length){rows.push([]);rows.push(['#類型','日期','工地','分給吉哥','分給姐姐','備註']);splits.forEach(s=>rows.push(['分帳',s.date,s.site||'',s.geo||'',s.sister||'',s.note||'']));}
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${co}_帳務備份_${today()}.csv`;a.click();
+}
+
+function importCSV(file){
+  if(!confirm('匯入會覆蓋目前所有資料，確定繼續？'))return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const text=ev.target.result.replace(/^\uFEFF/,'');
+      const rows=text.split('\n').map(r=>{const res=[];let cur='',inQ=false;for(let i=0;i<r.length;i++){if(r[i]==='"'){if(inQ&&r[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}else if(r[i]===','&&!inQ){res.push(cur.trim());cur='';}else cur+=r[i];}res.push(cur.trim());return res;});
+      const ni=[],ne=[],nc=[],ns=[];let mode='',cur=null;
+      for(const row of rows){
+        if(!row[0])continue;const t=row[0];
+        if(t==='#類型'){if(row[4]==='發票號碼')mode='inv';else if(row[4]==='費用類別')mode='exp';else if(row[1]==='項目')mode='comp';else if(row[3]==='分給吉哥')mode='split';continue;}
+        if(mode==='inv'){if(t==='發票'){if(cur)ni.push(cur);cur={id:Date.now()+Math.random(),date:row[1],site:row[2],vendor:row[3],inv_no:row[4],inv_date:row[5],total_amount:row[6],discount:row[7],note:row[8],payments:[]};if(row[9])cur.payments.push({id:Date.now()+Math.random(),date:row[9],check_date:row[10],amount:row[11],method:row[12],note:row[13]});}else if(t===''&&cur&&row[9])cur.payments.push({id:Date.now()+Math.random(),date:row[9],check_date:row[10],amount:row[11],method:row[12],note:row[13]});}
+        else if(mode==='exp'&&t==='支出')ne.push({id:Date.now()+Math.random(),date:row[1],site:row[2],vendor:row[3],category:row[4],amount:row[5],note:row[6]});
+        else if(mode==='comp'&&t==='公司支出')nc.push({id:Date.now()+Math.random(),item:row[1],period:row[2],amount:row[3],freq:row[4],note:row[5]});
+        else if(mode==='split'&&t==='分帳')ns.push({id:Date.now()+Math.random(),date:row[1],site:row[2],geo:row[3],sister:row[4],note:row[5]});
       }
+      if(cur)ni.push(cur);
+      saveK('invoices',ni);saveK('expenses',ne);
+      if(ST.co==='竑順')saveK('company_exp',nc);
+      if(ST.co==='吉諦')saveK('splits',ns);
+      alert('匯入成功！');loadAll(ST.co);
+    }catch(err){alert('匯入失敗，請確認檔案格式正確。');}
+  };
+  reader.readAsText(file,'UTF-8');
+}
 
-      const save = (key, data) => { try { storage.set(mk(co, key), JSON.stringify(data)); } catch { } };
+function render(){
+  const app=document.getElementById('app');
+  app.innerHTML='';
+  const{co,view,invoices,expItems,companyExp,splits,sites,vendors,
+        checkFilter,expFilter,filterSite,splitSite,search,modal,payModalId}=ST;
 
-      function inlineAddSite(val, cb) {
-        const v = val.trim(); if (!v) return;
-        const u = sites.includes(v) ? sites : [...sites, v]; setSites(u); save("sites", u);
-        cb(v); setAddingSite(false); setInlineSite("");
-      }
-      function inlineAddVendor(val, cb) {
-        const v = val.trim(); if (!v) return;
-        const u = vendors.includes(v) ? vendors : [...vendors, v]; setVendors(u); save("vendors", u);
-        cb(v); setAddingVendor(false); setInlineVendor("");
-      }
+  if(!co){
+    const wrap=div({style:{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}});
+    const box=div({style:{textAlign:'center'}});
+    box.appendChild(div({style:{fontSize:'32px',marginBottom:'8px'}},'🏗'));
+    box.appendChild(div({style:{fontWeight:'700',fontSize:'22px',marginBottom:'4px'}},'2026 工地帳務管理'));
+    box.appendChild(div({style:{color:'#888',fontSize:'13px',marginBottom:'32px'}},'請選擇要操作的公司'));
+    const btns=div({style:{display:'flex',gap:'16px',justifyContent:'center'}});
+    ['竑順','吉諦'].forEach(c=>{
+      btns.appendChild(mkBtn(c,CO_COLOR[c],'#fff',()=>loadAll(c),{borderRadius:'12px',padding:'24px 40px',fontSize:'18px',boxShadow:'0 4px 16px rgba(0,0,0,0.12)'}));
+    });
+    box.appendChild(btns);wrap.appendChild(box);app.appendChild(wrap);
+    return;
+  }
 
-      const SiteSelect = ({ value, onChange }) => (
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {addingSite
-            ? <div style={{ display: "flex", gap: 4, flex: 1 }}>
-                <input autoFocus style={{ ...S.inp, flex: 1 }} value={inlineSite} onChange={e => setInlineSite(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && inlineAddSite(inlineSite, onChange)} placeholder="新工地名稱..." />
-                <button style={S.btn()} onClick={() => inlineAddSite(inlineSite, onChange)}>確認</button>
-                <button style={S.ghost} onClick={() => { setAddingSite(false); setInlineSite(""); }}>✕</button>
-              </div>
-            : <>
-                <select style={S.inp} value={value} onChange={e => onChange(e.target.value)}>
-                  <option value="">請選擇工地</option>{sites.map(x => <option key={x}>{x}</option>)}
-                </select>
-                <button style={{ ...S.ghost, whiteSpace: "nowrap", padding: "6px 10px" }} onClick={() => setAddingSite(true)}>＋ 新增</button>
-              </>}
-        </div>
-      );
+  const accent=CO_COLOR[co];
+  const totalIncome=invoices.reduce((s,r)=>s+getPaid(r),0);
+  const totalReserved=invoices.reduce((s,r)=>s+getReserved(r),0);
+  const totalExpense=expItems.reduce((s,r)=>s+(Number(r.amount)||0),0);
+  const totalCompanyExp=companyExp.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const grandProfit=totalIncome-totalExpense;
+  const stats=siteStats();
+  const filteredChecks=invoices.filter(r=>{if(checkFilter==='未收完')return getReserved(r)>0;if(checkFilter==='已結清')return isSettled(r);return true;});
+  const filteredExp=expItems.filter(r=>{if(expFilter!=='全部'&&r.category!==expFilter)return false;if(filterSite!=='全部'&&r.site!==filterSite)return false;return true;});
+  const filteredSplits=splits.filter(r=>splitSite==='全部'||r.site===splitSite);
+  const ledger=[
+    ...invoices.map(inv=>({id:'i'+inv.id,date:inv.date,site:inv.site,vendor:inv.vendor,type:'開出發票',io:'收入',amount:Number(inv.total_amount)||0,paid:getPaid(inv),reserved:getReserved(inv),inv_no:inv.inv_no,note:inv.note})),
+    ...expItems.map(e=>({id:'e'+e.id,date:e.date,site:e.site,vendor:e.vendor,type:e.category,io:'支出',amount:Number(e.amount)||0,paid:Number(e.amount)||0,reserved:0,note:e.note}))
+  ].sort((a,b)=>b.date.localeCompare(a.date))
+   .filter(r=>(filterSite==='全部'||r.site===filterSite)&&(!search||`${r.site}${r.vendor}${r.inv_no||''}${r.note||''}`.includes(search)));
 
-      const VendorSelect = ({ value, onChange }) => (
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {addingVendor
-            ? <div style={{ display: "flex", gap: 4, flex: 1 }}>
-                <input autoFocus style={{ ...S.inp, flex: 1 }} value={inlineVendor} onChange={e => setInlineVendor(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && inlineAddVendor(inlineVendor, onChange)} placeholder="新廠商名稱..." />
-                <button style={S.btn()} onClick={() => inlineAddVendor(inlineVendor, onChange)}>確認</button>
-                <button style={S.ghost} onClick={() => { setAddingVendor(false); setInlineVendor(""); }}>✕</button>
-              </div>
-            : <>
-                <select style={S.inp} value={value} onChange={e => onChange(e.target.value)}>
-                  <option value="">請選擇廠商</option>{vendors.map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
-                <button style={{ ...S.ghost, whiteSpace: "nowrap", padding: "6px 10px" }} onClick={() => setAddingVendor(true)}>＋ 新增</button>
-              </>}
-        </div>
-      );
+  const navItems=[['dashboard','總覽'],['checks','收款管理'],['expenses','支出管理'],['ledger','帳務紀錄'],
+    ...(co==='竑順'?[['company_exp','公司支出']]:[]),
+    ...(co==='吉諦'?[['split','分帳記錄']]:[]),
+    ['profit','損益報表']];
 
-      const getNet = r => Math.max(0, (Number(r.total_amount) || 0) - (Number(r.discount) || 0));
-      const getPaid = r => (r.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-      const getReserved = r => Math.max(0, getNet(r) - getPaid(r));
-      const isSettled = r => getReserved(r) <= 0;
+  // Header
+  const hdr=div({class:'hdr'});
+  const homeBtn=document.createElement('button');
+  homeBtn.textContent='🏗';homeBtn.style.cssText='background:none;border:none;font-size:20px;cursor:pointer;';
+  homeBtn.addEventListener('click',()=>upd({co:null}));
+  hdr.appendChild(homeBtn);
+  hdr.appendChild(span({style:{fontWeight:'700',fontSize:'15px',color:accent}},co));
+  const coSw=div({style:{display:'flex',gap:'4px'}});
+  ['竑順','吉諦'].forEach(c=>{
+    const b=document.createElement('button');
+    b.textContent=c;
+    b.style.cssText=`background:${co===c?accent:'#f0f0f0'};color:${co===c?'#fff':'#888'};border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:${co===c?600:400};`;
+    b.addEventListener('click',()=>{if(co!==c)loadAll(c);});
+    coSw.appendChild(b);
+  });
+  hdr.appendChild(coSw);
+  const nav=div({style:{display:'flex',gap:'2px',marginLeft:'auto',flexWrap:'wrap'}});
+  navItems.forEach(([v,l])=>{
+    const b=document.createElement('button');
+    b.textContent=l;
+    b.style.cssText=`background:${view===v?'#f0f0f0':'transparent'};border:none;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:${view===v?600:400};color:${view===v?'#1a1a1a':'#888'};cursor:pointer;`;
+    b.addEventListener('click',()=>upd({view:v}));
+    nav.appendChild(b);
+  });
+  const expBtn=document.createElement('button');
+  expBtn.textContent='↑ 匯出';expBtn.style.cssText=`background:transparent;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:${accent};cursor:pointer;`;
+  expBtn.addEventListener('click',exportCSV);nav.appendChild(expBtn);
+  const impLbl=document.createElement('label');
+  impLbl.textContent='↓ 匯入';impLbl.style.cssText='background:transparent;border:none;border-radius:6px;padding:5px 10px;font-size:12px;color:#854F0B;cursor:pointer;';
+  const impInp=make('input',{type:'file',accept:'.csv',style:{display:'none'}});
+  impInp.addEventListener('change',e=>{if(e.target.files[0])importCSV(e.target.files[0]);e.target.value='';});
+  impLbl.appendChild(impInp);nav.appendChild(impLbl);
+  hdr.appendChild(nav);app.appendChild(hdr);
 
-      const filteredChecks = useMemo(() => invoices.filter(r => {
-        if (checkFilter === "未收完") return getReserved(r) > 0;
-        if (checkFilter === "已結清") return isSettled(r);
-        return true;
-      }), [invoices, checkFilter]);
+  const main=div({class:'main'});
 
-      const filteredExp = useMemo(() => expItems.filter(r => {
-        if (expFilter !== "全部" && r.category !== expFilter) return false;
-        if (filterSite !== "全部" && r.site !== filterSite) return false;
-        return true;
-      }), [expItems, expFilter, filterSite]);
-
-      const ledger = useMemo(() => {
-        const rows = [];
-        invoices.forEach(inv => rows.push({
-          id: `inv-${inv.id}`, date: inv.date, site: inv.site, vendor: inv.vendor,
-          type: "開出發票", io: "收入", amount: Number(inv.total_amount) || 0,
-          net: getNet(inv), paid: getPaid(inv), reserved: getReserved(inv), inv_no: inv.inv_no, note: inv.note
-        }));
-        expItems.forEach(e => rows.push({
-          id: `exp-${e.id}`, date: e.date, site: e.site, vendor: e.vendor,
-          type: e.category, io: "支出", amount: Number(e.amount) || 0,
-          net: Number(e.amount) || 0, paid: Number(e.amount) || 0, reserved: 0, note: e.note
-        }));
-        return rows.sort((a, b) => b.date.localeCompare(a.date));
-      }, [invoices, expItems]);
-
-      const filteredLedger = useMemo(() => ledger.filter(r => {
-        if (filterSite !== "全部" && r.site !== filterSite) return false;
-        if (search && !`${r.site}${r.vendor}${r.inv_no || ""}${r.note || ""}`.includes(search)) return false;
-        return true;
-      }), [ledger, filterSite, search]);
-
-      const totalIncome = invoices.reduce((s, r) => s + getPaid(r), 0);
-      const totalReserved = invoices.reduce((s, r) => s + getReserved(r), 0);
-      const totalExpense = expItems.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      const totalCompanyExp = companyExp.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-      const grandProfit = totalIncome - totalExpense;
-
-      const siteStats = useMemo(() => {
-        const map = {};
-        invoices.forEach(r => {
-          if (!map[r.site]) map[r.site] = { received: 0, reserved: 0, invoice: 0, worker: 0, material: 0 };
-          map[r.site].received += getPaid(r); map[r.site].reserved += getReserved(r);
-          map[r.site].invoice += Number(r.total_amount) || 0;
-        });
-        expItems.forEach(r => {
-          if (!map[r.site]) map[r.site] = { received: 0, reserved: 0, invoice: 0, worker: 0, material: 0 };
-          if (r.category === "工人支出") map[r.site].worker += Number(r.amount) || 0;
-          else map[r.site].material += Number(r.amount) || 0;
-        });
-        return map;
-      }, [invoices, expItems]);
-
-      const compExpByFreq = useMemo(() => {
-        const m = {}; FREQ_OPTS.forEach(f => m[f] = []);
-        companyExp.forEach(e => { if (m[e.freq]) m[e.freq].push(e); });
-        return m;
-      }, [companyExp]);
-
-      function saveInvoice() {
-        if (!invForm.total_amount || !invForm.site) return alert("請填寫工地和發票金額");
-        const rec = { ...invForm, id: editInvId || Date.now(), payments: invForm.payments || [] };
-        const u = editInvId ? invoices.map(r => r.id === editInvId ? rec : r) : [rec, ...invoices];
-        setInvoices(u); save("invoices", u); setShowInvForm(false); setEditInvId(null);
-      }
-      function delInvoice(id) {
-        if (!window.confirm("確定刪除？")) return;
-        const u = invoices.filter(r => r.id !== id); setInvoices(u); save("invoices", u);
-      }
-      function addPayment(invId) {
-        if (!payEntry.amount) return alert("請填寫金額");
-        const u = invoices.map(r => r.id !== invId ? r : { ...r, payments: [...(r.payments || []), { ...payEntry, id: Date.now() }] });
-        setInvoices(u); save("invoices", u); setPayEntry(emptyPay()); setShowPayModal(null);
-      }
-      function delPayment(invId, payId) {
-        const u = invoices.map(r => r.id !== invId ? r : { ...r, payments: (r.payments || []).filter(p => p.id !== payId) });
-        setInvoices(u); save("invoices", u);
-      }
-      function saveExpItem() {
-        if (!expForm.amount || !expForm.site) return alert("請填寫工地和金額");
-        const rec = { ...expForm, id: editExpId || Date.now() };
-        const u = editExpId ? expItems.map(r => r.id === editExpId ? rec : r) : [rec, ...expItems];
-        setExpItems(u); save("expenses", u); setShowExpForm(false); setEditExpId(null);
-      }
-      function delExpItem(id) {
-        if (!window.confirm("確定刪除？")) return;
-        const u = expItems.filter(r => r.id !== id); setExpItems(u); save("expenses", u);
-      }
-      function saveCompExp() {
-        if (!compExpForm.item || !compExpForm.amount) return alert("請填寫項目和金額");
-        const rec = { ...compExpForm, id: editCompExpId || Date.now() };
-        const u = editCompExpId ? companyExp.map(e => e.id === editCompExpId ? rec : e) : [rec, ...companyExp];
-        setCompanyExp(u); save("company_exp", u); setShowCompExpForm(false); setEditCompExpId(null);
-      }
-      function delCompExp(id) {
-        const u = companyExp.filter(e => e.id !== id); setCompanyExp(u); save("company_exp", u);
-      }
-
-      function exportCSV() {
-        const rows = [];
-        rows.push(["#類型","日期","工地","廠商","發票號碼","發票日期","發票金額","折讓","備註","收款日期","票期日期","收款金額","收款方式","收款備註"]);
-        invoices.forEach(inv => {
-          if ((inv.payments || []).length === 0) {
-            rows.push(["發票", inv.date, inv.site, inv.vendor||"", inv.inv_no||"", inv.inv_date||"", inv.total_amount||"", inv.discount||"", inv.note||"", "", "", "", "", ""]);
-          } else {
-            (inv.payments || []).forEach((p, i) => {
-              rows.push([
-                i===0?"發票":"", i===0?inv.date:"", i===0?inv.site:"", i===0?(inv.vendor||""):"",
-                i===0?(inv.inv_no||""):"", i===0?(inv.inv_date||""):"",
-                i===0?(inv.total_amount||""):"", i===0?(inv.discount||""):"", i===0?(inv.note||""):"",
-                p.date||"", p.check_date||"", p.amount||"", p.method||"", p.note||""
-              ]);
-            });
-          }
-        });
-        rows.push([]);
-        rows.push(["#類型","日期","工地","廠商","費用類別","金額","備註"]);
-        expItems.forEach(e => rows.push(["支出", e.date, e.site, e.vendor||"", e.category, e.amount||"", e.note||""]));
-        if (co === "竑順" && companyExp.length > 0) {
-          rows.push([]);
-          rows.push(["#類型","項目","區間","金額","頻率","備註"]);
-          companyExp.forEach(e => rows.push(["公司支出", e.item, e.period||"", e.amount||"", e.freq, e.note||""]));
-        }
-        const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
-        const blob = new Blob(["\uFEFF"+csv], { type: "text/csv;charset=utf-8" });
-        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = `${co}_帳務備份_${today()}.csv`; a.click();
-      }
-
-      function importCSV(e) {
-        const file = e.target.files[0]; if (!file) return;
-        if (!window.confirm("匯入會覆蓋目前所有資料，確定繼續？")) { e.target.value = ""; return; }
-        const reader = new FileReader();
-        reader.onload = ev => {
-          try {
-            const text = ev.target.result.replace(/^\uFEFF/, "");
-            const rows = text.split("\n").map(r => {
-              const res = []; let cur = "", inQ = false;
-              for (let i = 0; i < r.length; i++) {
-                if (r[i] === '"') { if (inQ && r[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
-                else if (r[i] === ',' && !inQ) { res.push(cur.trim()); cur = ""; }
-                else cur += r[i];
-              }
-              res.push(cur.trim()); return res;
-            });
-            const newInvoices = [], newExpItems = [], newCompExp = [];
-            let mode = "", curInv = null;
-            for (const row of rows) {
-              if (!row[0]) continue;
-              const type = row[0].replace(/^"/, "").replace(/"$/, "");
-              if (type === "#類型") {
-                if (row[4] === "發票號碼") mode = "invoice";
-                else if (row[4] === "費用類別") mode = "expense";
-                else if (row[1] === "項目") mode = "company";
-                continue;
-              }
-              if (mode === "invoice") {
-                if (type === "發票") {
-                  if (curInv) newInvoices.push(curInv);
-                  curInv = { id: Date.now()+Math.random(), date: row[1], site: row[2], vendor: row[3], inv_no: row[4], inv_date: row[5], total_amount: row[6], discount: row[7], note: row[8], payments: [] };
-                  if (row[9]) curInv.payments.push({ id: Date.now()+Math.random(), date: row[9], check_date: row[10], amount: row[11], method: row[12], note: row[13] });
-                } else if (type === "" && curInv && row[9]) {
-                  curInv.payments.push({ id: Date.now()+Math.random(), date: row[9], check_date: row[10], amount: row[11], method: row[12], note: row[13] });
-                }
-              } else if (mode === "expense" && type === "支出") {
-                newExpItems.push({ id: Date.now()+Math.random(), date: row[1], site: row[2], vendor: row[3], category: row[4], amount: row[5], note: row[6] });
-              } else if (mode === "company" && type === "公司支出") {
-                newCompExp.push({ id: Date.now()+Math.random(), item: row[1], period: row[2], amount: row[3], freq: row[4], note: row[5] });
-              }
-            }
-            if (curInv) newInvoices.push(curInv);
-            setInvoices(newInvoices); save("invoices", newInvoices);
-            setExpItems(newExpItems); save("expenses", newExpItems);
-            if (co === "竑順") { setCompanyExp(newCompExp); save("company_exp", newCompExp); }
-            alert("匯入成功！");
-          } catch { alert("匯入失敗，請確認檔案格式正確。"); }
-          e.target.value = "";
-        };
-        reader.readAsText(file, "UTF-8");
-      }
-
-      const currentPayInv = showPayModal ? invoices.find(r => r.id === showPayModal) : null;
-      const coColor = { "竑順": "#1D9E75", "吉諦": "#378ADD" };
-
-      const S = {
-        app: { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: "#1a1a1a", minHeight: "100vh", background: "#f5f5f7" },
-        hdr: { background: "#fff", borderBottom: "0.5px solid #e0e0e0", padding: "0 14px", display: "flex", alignItems: "center", gap: 10, height: 50, flexWrap: "wrap" },
-        nb: (a) => ({ background: a ? "#f0f0f0" : "transparent", border: "none", borderRadius: 6, padding: "5px 11px", cursor: "pointer", fontSize: 12, fontWeight: a ? 600 : 400, color: a ? "#1a1a1a" : "#888" }),
-        main: { padding: 14, maxWidth: 1100, margin: "0 auto" },
-        card: { background: "#fff", border: "0.5px solid #e0e0e0", borderRadius: 12, padding: "14px 16px", marginBottom: 12 },
-        mg: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginBottom: 12 },
-        metric: (c) => ({ background: "#f5f5f7", borderRadius: 8, padding: "11px 13px", borderLeft: `3px solid ${c}` }),
-        ml: { fontSize: 11, color: "#888", marginBottom: 2 },
-        mv: { fontSize: 16, fontWeight: 600 },
-        row: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
-        sel: { border: "0.5px solid #ccc", borderRadius: 6, padding: "5px 8px", fontSize: 12, background: "#fff", color: "#1a1a1a" },
-        inp: { border: "0.5px solid #ccc", borderRadius: 6, padding: "6px 9px", fontSize: 13, background: "#fff", color: "#1a1a1a", width: "100%", boxSizing: "border-box" },
-        btn: (c = "#1D9E75") => ({ background: c, color: "#fff", border: "none", borderRadius: 6, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }),
-        ghost: { background: "transparent", border: "0.5px solid #ccc", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 12, color: "#888" },
-        tbl: { width: "100%", borderCollapse: "collapse", fontSize: 12 },
-        th: { textAlign: "left", padding: "7px 9px", borderBottom: "0.5px solid #e0e0e0", color: "#888", fontWeight: 500, fontSize: 11, whiteSpace: "nowrap" },
-        td: { padding: "8px 9px", borderBottom: "0.5px solid #e0e0e0", verticalAlign: "middle" },
-        ov: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 },
-        modal: { background: "#fff", borderRadius: 12, padding: 22, width: "min(560px,95vw)", maxHeight: "90vh", overflowY: "auto" },
-        fg: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 },
-        lbl: { fontSize: 11, color: "#888", marginBottom: 3, display: "block" },
-        pill: (a, c = "#1D9E75") => ({ padding: "5px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: a ? 600 : 400, background: a ? c : "#f0f0f0", color: a ? "#fff" : "#888" }),
-      };
-
-      if (!co) return (
-        <div style={{ ...S.app, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🏗</div>
-            <div style={{ fontWeight: 700, fontSize: 22, marginBottom: 4 }}>2026 工地帳務管理</div>
-            <div style={{ color: "#888", fontSize: 13, marginBottom: 32 }}>請選擇要操作的公司</div>
-            <div style={{ display: "flex", gap: 16, justifyContent: "center" }}>
-              {COMPANIES.map(c => (
-                <button key={c} onClick={() => setCo(c)} style={{
-                  background: coColor[c], color: "#fff", border: "none", borderRadius: 12,
-                  padding: "24px 40px", cursor: "pointer", fontSize: 18, fontWeight: 700,
-                  boxShadow: "0 4px 16px rgba(0,0,0,0.12)"
-                }}>{c}</button>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-
-      if (loading) return <div style={{ ...S.app, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}><span>載入中...</span></div>;
-
-      const accent = coColor[co];
-      const navItems = [["dashboard","總覽"],["checks","收款管理"],["expenses","支出管理"],["ledger","帳務紀錄"],...(co==="竑順"?[["company_exp","公司支出"]]:[]),["profit","損益報表"]];
-
-      return (
-        <div style={S.app}>
-          <div style={S.hdr}>
-            <button onClick={() => setCo(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20 }}>🏗</button>
-            <span style={{ fontWeight: 700, fontSize: 15, color: accent }}>{co}</span>
-            <span style={{ fontSize: 11, color: "#888" }}>工地帳務</span>
-            <div style={{ display: "flex", gap: 6, marginLeft: 4 }}>
-              {COMPANIES.map(c => (
-                <button key={c} onClick={() => setCo(c)} style={{ background: co===c?accent:"#f0f0f0", color: co===c?"#fff":"#888", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: co===c?600:400 }}>{c}</button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 2, marginLeft: "auto", flexWrap: "wrap" }}>
-              {navItems.map(([v, l]) => (
-                <button key={v} style={S.nb(view===v)} onClick={() => setView(v)}>{l}</button>
-              ))}
-              <button style={{ ...S.nb(false), color: accent }} onClick={exportCSV}>↑ 匯出</button>
-              <label style={{ ...S.nb(false), color: "#854F0B", cursor: "pointer" }}>
-                ↓ 匯入<input type="file" accept=".csv" style={{ display: "none" }} onChange={importCSV} />
-              </label>
-            </div>
-          </div>
-
-          <div style={S.main}>
-            {view==="dashboard" && (
-              <>
-                <div style={S.mg}>
-                  <div style={S.metric(accent)}><div style={S.ml}>已收款</div><div style={{...S.mv,color:accent}}>NT$ {fmt(totalIncome)}</div></div>
-                  <div style={S.metric("#BA7517")}><div style={S.ml}>保留款</div><div style={{...S.mv,color:"#854F0B"}}>NT$ {fmt(totalReserved)}</div></div>
-                  <div style={S.metric("#E24B4A")}><div style={S.ml}>工地支出</div><div style={{...S.mv,color:"#A32D2D"}}>NT$ {fmt(totalExpense)}</div></div>
-                  <div style={S.metric("#6B5EA8")}><div style={S.ml}>工地損益</div><div style={{...S.mv,color:grandProfit>=0?"#6B5EA8":"#A32D2D"}}>NT$ {fmt(grandProfit)}</div></div>
-                  <div style={S.metric("#BA7517")}><div style={S.ml}>每人可分</div><div style={{...S.mv,color:"#854F0B"}}>NT$ {fmt(Math.round((grandProfit-totalCompanyExp)/2))}</div></div>
-                </div>
-                <div style={S.card}>
-                  <div style={{fontWeight:600,marginBottom:10,fontSize:13}}>工地損益概覽</div>
-                  {Object.keys(siteStats).length===0 && <div style={{color:"#888",fontSize:12}}>尚無資料</div>}
-                  {Object.entries(siteStats).map(([site,v])=>{
-                    const exp=v.worker+v.material; const p=v.received-exp;
-                    return <div key={site} style={{marginBottom:12}}>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
-                        <span style={{fontWeight:600}}>{site}</span>
-                        <span style={{color:p>=0?accent:"#A32D2D",fontWeight:600}}>NT$ {fmt(p)}</span>
-                      </div>
-                      <div style={{height:5,background:"#f0f0f0",borderRadius:3,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:`${v.received>0?Math.min(Math.abs(Math.round(p/v.received*100)),100):0}%`,background:p>=0?accent:"#E24B4A",borderRadius:3}}/>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#888",marginTop:2}}>
-                        <span>已收 {fmt(v.received)}</span>
-                        {v.reserved>0&&<span style={{color:"#854F0B"}}>保留 {fmt(v.reserved)}</span>}
-                        <span>支出 {fmt(exp)}</span>
-                      </div>
-                    </div>;
-                  })}
-                </div>
-              </>
-            )}
-
-            {view==="checks" && (
-              <>
-                <div style={{marginBottom:12}}>
-                  <div style={S.mg}>
-                    <div style={S.metric("#378ADD")}><div style={S.ml}>發票總額</div><div style={{...S.mv,color:"#185FA5"}}>NT$ {fmt(invoices.reduce((s,r)=>s+(Number(r.total_amount)||0),0))}</div></div>
-                    <div style={S.metric(accent)}><div style={S.ml}>已收款</div><div style={{...S.mv,color:accent}}>NT$ {fmt(totalIncome)}</div></div>
-                    <div style={S.metric("#E24B4A")}><div style={S.ml}>未收款</div><div style={{...S.mv,color:"#A32D2D"}}>NT$ {fmt(totalReserved)}</div></div>
-                  </div>
-                  <div style={{...S.row,justifyContent:"space-between"}}>
-                    <div style={S.row}>{["全部","未收完","已結清"].map(f=><button key={f} style={S.pill(checkFilter===f,accent)} onClick={()=>setCheckFilter(f)}>{f}</button>)}</div>
-                    <button style={S.btn(accent)} onClick={()=>{setInvForm(emptyInv());setEditInvId(null);setShowInvForm(true);}}>+ 新增發票</button>
-                  </div>
-                </div>
-                {filteredChecks.length===0 && <div style={{...S.card,textAlign:"center",color:"#888",padding:36}}>尚無紀錄</div>}
-                {filteredChecks.map(r=>{
-                  const net=getNet(r); const paid=getPaid(r); const reserved=Math.max(0,net-paid);
-                  const pct=net>0?Math.round(paid/net*100):0; const settled=reserved<=0;
-                  return <div key={r.id} style={{...S.card,borderLeft:`3px solid ${settled?accent:"#BA7517"}`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                      <div>
-                        <span style={{fontWeight:700,fontSize:14}}>{r.vendor||r.site}</span>
-                        {r.inv_no&&<span style={{fontSize:11,color:"#888",marginLeft:8}}>發票 {r.inv_no}</span>}
-                        <div style={{fontSize:11,color:"#888",marginTop:2}}>{r.site} · {r.date}</div>
-                      </div>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <div style={{textAlign:"right"}}>
-                          <div style={{fontWeight:700,fontSize:15}}>NT$ {fmt(Number(r.total_amount)||0)}</div>
-                          {(Number(r.discount)||0)>0&&<div style={{fontSize:11,color:"#A32D2D"}}>折讓 -NT$ {fmt(r.discount)}</div>}
-                          <div style={{fontSize:10,color:"#888"}}>{(Number(r.discount)||0)>0?`實收 NT$ ${fmt(net)}`:"發票金額"}</div>
-                        </div>
-                        <button style={{...S.ghost,padding:"4px 6px"}} onClick={()=>{setInvForm({...r});setEditInvId(r.id);setShowInvForm(true);}}>✎</button>
-                        <button style={{...S.ghost,padding:"4px 6px",color:"#A32D2D"}} onClick={()=>delInvoice(r.id)}>✕</button>
-                      </div>
-                    </div>
-                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
-                      <span style={{color:accent}}>已收款 <strong>NT$ {fmt(paid)}</strong></span>
-                      {reserved>0?<span style={{color:"#A32D2D"}}>未收款 <strong>NT$ {fmt(reserved)}</strong></span>:<span style={{color:accent,fontWeight:600}}>✓ 已結清</span>}
-                    </div>
-                    <div style={{height:6,background:"#f0f0f0",borderRadius:3,overflow:"hidden",marginBottom:4}}>
-                      <div style={{height:"100%",width:`${pct}%`,background:settled?accent:"#F0A500",borderRadius:3}}/>
-                    </div>
-                    <div style={{fontSize:10,color:"#888",marginBottom:10}}>已收 {pct}%{reserved>0&&` · 差距 NT$ ${fmt(reserved)}`}</div>
-                    {(r.payments||[]).length>0&&<div style={{background:"#f5f5f7",borderRadius:8,padding:"8px 12px",marginBottom:8}}>
-                      <div style={{fontSize:11,fontWeight:600,color:"#888",marginBottom:6}}>收款紀錄</div>
-                      {(r.payments||[]).map(p=>(
-                        <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,padding:"4px 0",borderBottom:"0.5px solid #e0e0e0",gap:6}}>
-                          <span style={{color:"#888",minWidth:70}}>{p.date}</span>
-                          {p.check_date&&<span style={{color:"#854F0B",minWidth:70}}>票期 {p.check_date}</span>}
-                          <span style={{color:accent,fontWeight:600}}>+NT$ {fmt(p.amount)}</span>
-                          <span style={{color:"#888"}}>{p.method}</span>
-                          <span style={{flex:1,color:"#888",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.note||""}</span>
-                          <button style={{background:"none",border:"none",cursor:"pointer",color:"#ccc",fontSize:13}} onClick={()=>delPayment(r.id,p.id)}>✕</button>
-                        </div>
-                      ))}
-                    </div>}
-                    {!settled&&<button onClick={()=>{setShowPayModal(r.id);setPayEntry(emptyPay());}}
-                      style={{width:"100%",padding:"8px",background:"#E8F5E9",border:`0.5px solid ${accent}`,borderRadius:8,cursor:"pointer",color:accent,fontWeight:600,fontSize:13}}>
-                      + 新增收款記錄
-                    </button>}
-                  </div>;
-                })}
-              </>
-            )}
-
-            {view==="expenses" && (
-              <>
-                <div style={{...S.row,justifyContent:"space-between",marginBottom:12}}>
-                  <div style={S.row}>{["全部",...EXPENSE_CATS].map(f=><button key={f} style={S.pill(expFilter===f,accent)} onClick={()=>setExpFilter(f)}>{f}</button>)}</div>
-                  <button style={S.btn("#E24B4A")} onClick={()=>{setExpForm(emptyExp());setEditExpId(null);setShowExpForm(true);}}>+ 新增支出</button>
-                </div>
-                <div style={S.mg}>
-                  <div style={S.metric("#E24B4A")}><div style={S.ml}>支出合計</div><div style={{...S.mv,color:"#A32D2D"}}>NT$ {fmt(totalExpense)}</div></div>
-                  {EXPENSE_CATS.map(c=>(
-                    <div key={c} style={S.metric("#BA7517")}><div style={S.ml}>{c}</div><div style={{...S.mv,color:"#854F0B",fontSize:14}}>NT$ {fmt(expItems.filter(e=>e.category===c).reduce((s,e)=>s+(Number(e.amount)||0),0))}</div></div>
-                  ))}
-                </div>
-                <div style={S.card}><div style={{overflowX:"auto"}}>
-                  <table style={S.tbl}>
-                    <thead><tr>{["日期","工地","廠商","費用類別","金額","備註",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {filteredExp.length===0&&<tr><td colSpan={7} style={{...S.td,textAlign:"center",color:"#888",padding:28}}>尚無支出紀錄</td></tr>}
-                      {filteredExp.map(e=>(
-                        <tr key={e.id} onMouseEnter={ev=>ev.currentTarget.style.background="#f5f5f7"} onMouseLeave={ev=>ev.currentTarget.style.background=""}>
-                          <td style={S.td}>{e.date}</td><td style={S.td}>{e.site}</td><td style={S.td}>{e.vendor||"-"}</td>
-                          <td style={S.td}><span style={{fontSize:11,background:e.category==="工人支出"?"#FAEEDA":"#E6F1FB",color:e.category==="工人支出"?"#854F0B":"#185FA5",padding:"2px 7px",borderRadius:4,fontWeight:500}}>{e.category}</span></td>
-                          <td style={{...S.td,color:"#A32D2D",fontWeight:600}}>NT$ {fmt(e.amount)}</td>
-                          <td style={{...S.td,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note||"-"}</td>
-                          <td style={S.td}>
-                            <button style={{...S.ghost,padding:"2px 6px",fontSize:10,marginRight:3}} onClick={()=>{setExpForm({...e});setEditExpId(e.id);setShowExpForm(true);}}>✎</button>
-                            <button style={{...S.ghost,padding:"2px 6px",fontSize:10,color:"#A32D2D"}} onClick={()=>delExpItem(e.id)}>✕</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div></div>
-              </>
-            )}
-
-            {view==="ledger" && (
-              <>
-                <div style={{...S.row,marginBottom:12,justifyContent:"space-between"}}>
-                  <div style={S.row}>
-                    <input style={{...S.inp,width:170}} placeholder="搜尋工地/廠商/發票..." value={search} onChange={e=>setSearch(e.target.value)}/>
-                    <select style={S.sel} value={filterSite} onChange={e=>setFilterSite(e.target.value)}>
-                      <option>全部</option>{sites.map(x=><option key={x}>{x}</option>)}
-                    </select>
-                  </div>
-                  <div style={{fontSize:12,color:"#888"}}>共 {filteredLedger.length} 筆</div>
-                </div>
-                <div style={S.card}><div style={{overflowX:"auto"}}>
-                  <table style={S.tbl}>
-                    <thead><tr>{["日期","工地","廠商","類型","收/支","發票金額","已收/已付","保留款","備註"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {filteredLedger.length===0&&<tr><td colSpan={9} style={{...S.td,textAlign:"center",color:"#888",padding:28}}>尚無紀錄</td></tr>}
-                      {filteredLedger.map(r=>(
-                        <tr key={r.id} onMouseEnter={e=>e.currentTarget.style.background="#f5f5f7"} onMouseLeave={e=>e.currentTarget.style.background=""}>
-                          <td style={S.td}>{r.date}</td><td style={S.td}>{r.site}</td><td style={S.td}>{r.vendor||"-"}</td>
-                          <td style={S.td}><span style={{fontSize:11,padding:"2px 7px",borderRadius:4,fontWeight:500,background:r.io==="收入"?"#E1F5EE":"#F3F4F6",color:r.io==="收入"?accent:"#555"}}>{r.type}</span></td>
-                          <td style={S.td}><span style={{display:"inline-block",padding:"2px 7px",borderRadius:4,fontSize:11,background:r.io==="收入"?"#EAF3DE":"#FCEBEB",color:r.io==="收入"?"#3B6D11":"#A32D2D",fontWeight:500}}>{r.io}</span></td>
-                          <td style={{...S.td,fontWeight:600}}>NT$ {fmt(r.amount)}</td>
-                          <td style={{...S.td,color:r.io==="收入"?accent:"#A32D2D",fontWeight:500}}>NT$ {fmt(r.paid)}</td>
-                          <td style={{...S.td,color:r.reserved>0?"#854F0B":"#3B6D11"}}>{r.reserved>0?`NT$ ${fmt(r.reserved)}`:"✓"}</td>
-                          <td style={{...S.td,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.note||"-"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div></div>
-              </>
-            )}
-
-            {view==="company_exp" && (
-              <>
-                <div style={{...S.row,marginBottom:12,justifyContent:"space-between"}}>
-                  <div style={{fontWeight:600,fontSize:14}}>公司固定支出</div>
-                  <button style={S.btn(accent)} onClick={()=>{setCompExpForm(emptyCompExp());setEditCompExpId(null);setShowCompExpForm(true);}}>+ 新增</button>
-                </div>
-                <div style={S.mg}>
-                  {FREQ_OPTS.filter(f=>compExpByFreq[f]?.length>0).map(f=>(
-                    <div key={f} style={S.metric(accent)}>
-                      <div style={S.ml}>{f}</div>
-                      <div style={{...S.mv,fontSize:14}}>NT$ {fmt(compExpByFreq[f].reduce((s,e)=>s+(Number(e.amount)||0),0))}</div>
-                      <div style={{fontSize:10,color:"#888",marginTop:1}}>{compExpByFreq[f].length} 項</div>
-                    </div>
-                  ))}
-                  <div style={S.metric("#E24B4A")}><div style={S.ml}>全部合計</div><div style={{...S.mv,color:"#A32D2D"}}>NT$ {fmt(totalCompanyExp)}</div></div>
-                </div>
-                {FREQ_OPTS.filter(f=>compExpByFreq[f]?.length>0).map(f=>(
-                  <div key={f} style={S.card}>
-                    <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>{f}支出 <span style={{color:"#A32D2D",marginLeft:6,fontWeight:400}}>NT$ {fmt(compExpByFreq[f].reduce((s,e)=>s+(Number(e.amount)||0),0))}</span></div>
-                    <table style={S.tbl}>
-                      <thead><tr>{["項目","區間","金額","備註","操作"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-                      <tbody>{compExpByFreq[f].map(e=>(
-                        <tr key={e.id} onMouseEnter={ev=>ev.currentTarget.style.background="#f5f5f7"} onMouseLeave={ev=>ev.currentTarget.style.background=""}>
-                          <td style={{...S.td,fontWeight:500}}>{e.item}</td>
-                          <td style={S.td}>{e.period||"-"}</td>
-                          <td style={{...S.td,color:"#A32D2D",fontWeight:500}}>NT$ {fmt(e.amount)}</td>
-                          <td style={S.td}>{e.note||"-"}</td>
-                          <td style={S.td}>
-                            <button style={{...S.ghost,padding:"2px 6px",fontSize:10,marginRight:3}} onClick={()=>{setCompExpForm({...e});setEditCompExpId(e.id);setShowCompExpForm(true);}}>✎</button>
-                            <button style={{...S.ghost,padding:"2px 6px",fontSize:10,color:"#A32D2D"}} onClick={()=>delCompExp(e.id)}>✕</button>
-                          </td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                  </div>
-                ))}
-                {companyExp.length===0&&<div style={{...S.card,textAlign:"center",color:"#888",padding:32}}>尚無支出紀錄</div>}
-              </>
-            )}
-
-            {view==="profit" && (
-              <>
-                <div style={S.mg}>
-                  <div style={S.metric(accent)}><div style={S.ml}>已收款</div><div style={{...S.mv,color:accent}}>NT$ {fmt(totalIncome)}</div></div>
-                  <div style={S.metric("#E24B4A")}><div style={S.ml}>公司固定支出</div><div style={{...S.mv,color:"#A32D2D"}}>NT$ {fmt(totalCompanyExp)}</div></div>
-                  <div style={S.metric("#378ADD")}><div style={S.ml}>工地損益</div><div style={{...S.mv,color:grandProfit>=0?"#185FA5":"#A32D2D"}}>NT$ {fmt(grandProfit)}</div></div>
-                  <div style={S.metric("#6B5EA8")}><div style={S.ml}>總損益</div><div style={{...S.mv,color:"#4B3E8A"}}>NT$ {fmt(grandProfit-totalCompanyExp)}</div></div>
-                  <div style={S.metric("#BA7517")}><div style={S.ml}>每人可分</div><div style={{...S.mv,color:"#854F0B"}}>NT$ {fmt(Math.round((grandProfit-totalCompanyExp)/2))}</div></div>
-                </div>
-                <div style={S.card}>
-                  <div style={{fontWeight:600,fontSize:14,marginBottom:12}}>各工地損益一覽表</div>
-                  <div style={{overflowX:"auto"}}>
-                    <table style={{...S.tbl,minWidth:700}}>
-                      <thead><tr>
-                        <th style={{...S.th,minWidth:100}}>工地</th>
-                        <th style={{...S.th,textAlign:"right",color:"#2E7D32"}}>已收款</th>
-                        <th style={{...S.th,textAlign:"right",color:"#854F0B"}}>保留款</th>
-                        <th style={{...S.th,textAlign:"right",color:"#A32D2D"}}>工人支出</th>
-                        <th style={{...S.th,textAlign:"right",color:"#A32D2D"}}>五金材料支出</th>
-                        <th style={{...S.th,textAlign:"right"}}>開出發票金額</th>
-                        <th style={{...S.th,textAlign:"right",fontWeight:700}}>損益</th>
-                      </tr></thead>
-                      <tbody>
-                        {Object.keys(siteStats).length===0&&<tr><td colSpan={7} style={{...S.td,textAlign:"center",color:"#888",padding:28}}>尚無資料</td></tr>}
-                        {Object.entries(siteStats).map(([site,v])=>{
-                          const exp=v.worker+v.material; const p=v.received-exp;
-                          return <tr key={site} onMouseEnter={e=>e.currentTarget.style.background="#f5f5f7"} onMouseLeave={e=>e.currentTarget.style.background=""}>
-                            <td style={{...S.td,fontWeight:700}}>{site}</td>
-                            <td style={{...S.td,textAlign:"right",color:accent,fontWeight:500}}>NT$ {fmt(v.received)}</td>
-                            <td style={{...S.td,textAlign:"right",color:"#854F0B"}}>{v.reserved>0?`NT$ ${fmt(v.reserved)}`:"-"}</td>
-                            <td style={{...S.td,textAlign:"right",color:"#A32D2D"}}>{v.worker>0?`NT$ ${fmt(v.worker)}`:"-"}</td>
-                            <td style={{...S.td,textAlign:"right",color:"#A32D2D"}}>{v.material>0?`NT$ ${fmt(v.material)}`:"-"}</td>
-                            <td style={{...S.td,textAlign:"right"}}>{v.invoice>0?`NT$ ${fmt(v.invoice)}`:"-"}</td>
-                            <td style={{...S.td,textAlign:"right",fontWeight:700,color:p>=0?"#185FA5":"#A32D2D",background:p>=0?"#F0F7FF":"#FFF5F5"}}>NT$ {fmt(p)}</td>
-                          </tr>;
-                        })}
-                        {Object.keys(siteStats).length>0&&<tr style={{borderTop:"2px solid #e0e0e0",background:"#f5f5f7"}}>
-                          <td style={{...S.td,fontWeight:700}}>總計</td>
-                          <td style={{...S.td,textAlign:"right",fontWeight:700,color:accent}}>NT$ {fmt(totalIncome)}</td>
-                          <td style={{...S.td,textAlign:"right",fontWeight:700,color:"#854F0B"}}>NT$ {fmt(totalReserved)}</td>
-                          <td style={{...S.td,textAlign:"right",fontWeight:700,color:"#A32D2D"}}>NT$ {fmt(Object.values(siteStats).reduce((s,v)=>s+v.worker,0))}</td>
-                          <td style={{...S.td,textAlign:"right",fontWeight:700,color:"#A32D2D"}}>NT$ {fmt(Object.values(siteStats).reduce((s,v)=>s+v.material,0))}</td>
-                          <td style={{...S.td,textAlign:"right",fontWeight:700}}>NT$ {fmt(Object.values(siteStats).reduce((s,v)=>s+v.invoice,0))}</td>
-                          <td style={{...S.td,textAlign:"right",fontWeight:700,fontSize:13,color:grandProfit>=0?"#185FA5":"#A32D2D",background:grandProfit>=0?"#E3F2FD":"#FFEBEE"}}>NT$ {fmt(grandProfit)}</td>
-                        </tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
-                  {Object.entries(siteStats).map(([site,v])=>{
-                    const exp=v.worker+v.material; const p=v.received-exp;
-                    return <div key={site} style={{...S.card,marginBottom:0,borderLeft:`3px solid ${p>=0?accent:"#E24B4A"}`}}>
-                      <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>{site}</div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"3px 10px",fontSize:12}}>
-                        <span style={{color:"#888"}}>已收款</span><span style={{textAlign:"right",color:accent,fontWeight:500}}>NT$ {fmt(v.received)}</span>
-                        {v.reserved>0&&<><span style={{color:"#888"}}>保留款</span><span style={{textAlign:"right",color:"#854F0B"}}>NT$ {fmt(v.reserved)}</span></>}
-                        {v.worker>0&&<><span style={{color:"#888"}}>工人支出</span><span style={{textAlign:"right",color:"#A32D2D"}}>-NT$ {fmt(v.worker)}</span></>}
-                        {v.material>0&&<><span style={{color:"#888"}}>五金材料</span><span style={{textAlign:"right",color:"#A32D2D"}}>-NT$ {fmt(v.material)}</span></>}
-                        {v.invoice>0&&<><span style={{color:"#888"}}>開出發票</span><span style={{textAlign:"right"}}>NT$ {fmt(v.invoice)}</span></>}
-                      </div>
-                      <div style={{borderTop:"0.5px solid #e0e0e0",marginTop:8,paddingTop:7,display:"flex",justifyContent:"space-between"}}>
-                        <span style={{fontSize:11,color:"#888"}}>損益</span>
-                        <span style={{fontWeight:700,fontSize:15,color:p>=0?"#185FA5":"#A32D2D"}}>NT$ {fmt(p)}</span>
-                      </div>
-                    </div>;
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
-          {showInvForm&&<div style={S.ov} onClick={e=>e.target===e.currentTarget&&setShowInvForm(false)}>
-            <div style={S.modal}>
-              <div style={{fontWeight:700,fontSize:15,marginBottom:16}}>{editInvId?"編輯發票":"新增開出發票"}</div>
-              <div style={S.fg}>
-                <div><label style={S.lbl}>日期</label><input type="date" style={S.inp} value={invForm.date} onChange={e=>setInvForm(f=>({...f,date:e.target.value}))}/></div>
-                <div><label style={S.lbl}>發票號碼</label><input style={S.inp} value={invForm.inv_no} onChange={e=>setInvForm(f=>({...f,inv_no:e.target.value}))} placeholder="發票號碼"/></div>
-                <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>工地</label><SiteSelect value={invForm.site} onChange={v=>setInvForm(f=>({...f,site:v}))}/></div>
-                <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>廠商</label><VendorSelect value={invForm.vendor} onChange={v=>setInvForm(f=>({...f,vendor:v}))}/></div>
-                <div><label style={S.lbl}>發票日期</label><input type="date" style={S.inp} value={invForm.inv_date} onChange={e=>setInvForm(f=>({...f,inv_date:e.target.value}))}/></div>
-                <div><label style={S.lbl}>發票金額</label><input type="number" style={S.inp} value={invForm.total_amount} onChange={e=>setInvForm(f=>({...f,total_amount:e.target.value}))} placeholder="0"/></div>
-                <div><label style={S.lbl}>折讓金額</label><input type="number" style={S.inp} value={invForm.discount||""} onChange={e=>setInvForm(f=>({...f,discount:e.target.value}))} placeholder="0（無折讓可留空）"/></div>
-              </div>
-              <div style={{marginBottom:10}}><label style={S.lbl}>備註</label><textarea style={{...S.inp,height:50,resize:"vertical"}} value={invForm.note} onChange={e=>setInvForm(f=>({...f,note:e.target.value}))} placeholder="備註..."/></div>
-              <div style={{...S.row,justifyContent:"flex-end",gap:8}}>
-                <button style={S.ghost} onClick={()=>setShowInvForm(false)}>取消</button>
-                <button style={S.btn(accent)} onClick={saveInvoice}>儲存</button>
-              </div>
-            </div>
-          </div>}
-
-          {showExpForm&&<div style={S.ov} onClick={e=>e.target===e.currentTarget&&setShowExpForm(false)}>
-            <div style={S.modal}>
-              <div style={{fontWeight:700,fontSize:15,marginBottom:16}}>{editExpId?"編輯支出":"新增支出"}</div>
-              <div style={S.fg}>
-                <div><label style={S.lbl}>日期</label><input type="date" style={S.inp} value={expForm.date} onChange={e=>setExpForm(f=>({...f,date:e.target.value}))}/></div>
-                <div><label style={S.lbl}>費用類別</label>
-                  <select style={S.inp} value={expForm.category} onChange={e=>setExpForm(f=>({...f,category:e.target.value}))}>
-                    {EXPENSE_CATS.map(c=><option key={c}>{c}</option>)}
-                  </select></div>
-                <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>工地</label><SiteSelect value={expForm.site} onChange={v=>setExpForm(f=>({...f,site:v}))}/></div>
-                <div style={{gridColumn:"1/-1"}}><label style={S.lbl}>廠商</label><VendorSelect value={expForm.vendor} onChange={v=>setExpForm(f=>({...f,vendor:v}))}/></div>
-                <div><label style={S.lbl}>金額</label><input type="number" style={S.inp} value={expForm.amount} onChange={e=>setExpForm(f=>({...f,amount:e.target.value}))} placeholder="0"/></div>
-              </div>
-              <div style={{marginBottom:10}}><label style={S.lbl}>備註</label><textarea style={{...S.inp,height:50,resize:"vertical"}} value={expForm.note} onChange={e=>setExpForm(f=>({...f,note:e.target.value}))} placeholder="備註..."/></div>
-              <div style={{...S.row,justifyContent:"flex-end",gap:8}}>
-                <button style={S.ghost} onClick={()=>setShowExpForm(false)}>取消</button>
-                <button style={S.btn("#E24B4A")} onClick={saveExpItem}>儲存</button>
-              </div>
-            </div>
-          </div>}
-
-          {showPayModal&&currentPayInv&&<div style={S.ov} onClick={e=>e.target===e.currentTarget&&setShowPayModal(null)}>
-            <div style={{...S.modal,width:"min(400px,95vw)"}}>
-              <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>新增收款記錄</div>
-              <div style={{fontSize:12,color:"#888",marginBottom:14}}>{currentPayInv.vendor||currentPayInv.site} · 尚未收款 NT$ {fmt(getReserved(currentPayInv))}</div>
-              <div style={{display:"grid",gap:10}}>
-                <div><label style={S.lbl}>收款日期</label><input type="date" style={S.inp} value={payEntry.date} onChange={e=>setPayEntry(p=>({...p,date:e.target.value}))}/></div>
-                <div><label style={S.lbl}>匯款／支票日期</label><input type="date" style={S.inp} value={payEntry.check_date} onChange={e=>setPayEntry(p=>({...p,check_date:e.target.value}))}/></div>
-                <div><label style={S.lbl}>收款金額</label><input type="number" style={S.inp} value={payEntry.amount} onChange={e=>setPayEntry(p=>({...p,amount:e.target.value}))} placeholder={`最多 NT$ ${fmt(getReserved(currentPayInv))}`}/></div>
-                <div><label style={S.lbl}>收款方式</label>
-                  <select style={S.inp} value={payEntry.method} onChange={e=>setPayEntry(p=>({...p,method:e.target.value}))}>
-                    {PAY_METHODS.map(m=><option key={m}>{m}</option>)}
-                  </select></div>
-                <div><label style={S.lbl}>備註</label><input style={S.inp} value={payEntry.note} onChange={e=>setPayEntry(p=>({...p,note:e.target.value}))} placeholder="備註..."/></div>
-              </div>
-              <div style={{...S.row,justifyContent:"flex-end",marginTop:14,gap:8}}>
-                <button style={S.ghost} onClick={()=>setShowPayModal(null)}>取消</button>
-                <button style={S.btn(accent)} onClick={()=>addPayment(showPayModal)}>確認收款</button>
-              </div>
-            </div>
-          </div>}
-
-          {showCompExpForm&&<div style={S.ov} onClick={e=>e.target===e.currentTarget&&setShowCompExpForm(false)}>
-            <div style={{...S.modal,width:"min(380px,95vw)"}}>
-              <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>{editCompExpId?"編輯":"新增"}公司支出</div>
-              <div style={{display:"grid",gap:10}}>
-                <div><label style={S.lbl}>項目</label><input style={S.inp} value={compExpForm.item} onChange={e=>setCompExpForm(f=>({...f,item:e.target.value}))} placeholder="例：董事長薪水"/></div>
-                <div><label style={S.lbl}>區間</label><input style={S.inp} value={compExpForm.period} onChange={e=>setCompExpForm(f=>({...f,period:e.target.value}))} placeholder="例：2026-01"/></div>
-                <div><label style={S.lbl}>金額</label><input type="number" style={S.inp} value={compExpForm.amount} onChange={e=>setCompExpForm(f=>({...f,amount:e.target.value}))} placeholder="0"/></div>
-                <div><label style={S.lbl}>頻率</label>
-                  <select style={S.inp} value={compExpForm.freq} onChange={e=>setCompExpForm(f=>({...f,freq:e.target.value}))}>
-                    {FREQ_OPTS.map(x=><option key={x}>{x}</option>)}
-                  </select></div>
-                <div><label style={S.lbl}>備註</label><input style={S.inp} value={compExpForm.note} onChange={e=>setCompExpForm(f=>({...f,note:e.target.value}))} placeholder="備註..."/></div>
-              </div>
-              <div style={{...S.row,justifyContent:"flex-end",marginTop:14,gap:8}}>
-                <button style={S.ghost} onClick={()=>setShowCompExpForm(false)}>取消</button>
-                <button style={S.btn(accent)} onClick={saveCompExp}>儲存</button>
-              </div>
-            </div>
-          </div>}
-        </div>
-      );
+  // 總覽
+  if(view==='dashboard'){
+    const mg=div({class:'mg'});
+    mg.appendChild(metric('已收款',`NT$ ${fmt(totalIncome)}`,accent));
+    mg.appendChild(metric('保留款',`NT$ ${fmt(totalReserved)}`,'#BA7517'));
+    mg.appendChild(metric('工地支出',`NT$ ${fmt(totalExpense)}`,'#E24B4A'));
+    mg.appendChild(metric('工地損益',`NT$ ${fmt(grandProfit)}`,grandProfit>=0?'#6B5EA8':'#A32D2D'));
+    mg.appendChild(metric('每人可分',`NT$ ${fmt(Math.round((grandProfit-totalCompanyExp)/2))}`,'#BA7517'));
+    main.appendChild(mg);
+    const card=div({class:'card'});
+    card.appendChild(div({style:{fontWeight:'600',fontSize:'14px',marginBottom:'12px'}},'各工地損益一覽表'));
+    const ow=div({style:{overflowX:'auto'}});
+    const tbl=make('table',{class:'tbl'});
+    const thead=make('thead');
+    thead.appendChild(tr(th({style:{minWidth:'90px'}},'工地'),th({style:{textAlign:'right',color:'#2E7D32'}},'已收款'),th({style:{textAlign:'right',color:'#854F0B'}},'保留款'),th({style:{textAlign:'right',color:'#A32D2D'}},'工人支出'),th({style:{textAlign:'right',color:'#A32D2D'}},'五金材料'),th({style:{textAlign:'right'}},'開出發票'),th({style:{textAlign:'right',fontWeight:'700'}},'損益')));
+    tbl.appendChild(thead);
+    const tbody=make('tbody');
+    const entries=Object.entries(stats);
+    if(!entries.length)tbody.appendChild(tr(make('td',{colspan:7,style:{textAlign:'center',color:'#888',padding:'24px'}},'尚無資料')));
+    entries.forEach(([site,v])=>{
+      const exp=v.worker+v.material,p=v.received-exp;
+      tbody.appendChild(tr(td({style:{fontWeight:'700'}},site),td({style:{textAlign:'right',color:accent,fontWeight:'500'}},`NT$ ${fmt(v.received)}`),td({style:{textAlign:'right',color:'#854F0B'}},v.reserved>0?`NT$ ${fmt(v.reserved)}`:'-'),td({style:{textAlign:'right',color:'#A32D2D'}},v.worker>0?`NT$ ${fmt(v.worker)}`:'-'),td({style:{textAlign:'right',color:'#A32D2D'}},v.material>0?`NT$ ${fmt(v.material)}`:'-'),td({style:{textAlign:'right'}},v.invoice>0?`NT$ ${fmt(v.invoice)}`:'-'),td({style:{textAlign:'right',fontWeight:'700',color:p>=0?'#185FA5':'#A32D2D',background:p>=0?'#F0F7FF':'#FFF5F5'}},`NT$ ${fmt(p)}`)));
+    });
+    if(entries.length){
+      const ti=entries.reduce((s,[,v])=>s+v.received,0),tw=entries.reduce((s,[,v])=>s+v.worker,0),tm=entries.reduce((s,[,v])=>s+v.material,0),tiv=entries.reduce((s,[,v])=>s+v.invoice,0),tr2=entries.reduce((s,[,v])=>s+v.reserved,0),gp=ti-(tw+tm);
+      tbody.appendChild(tr(td({style:{fontWeight:'700',borderTop:'2px solid #e0e0e0'}},'總計'),td({style:{textAlign:'right',fontWeight:'700',color:accent,borderTop:'2px solid #e0e0e0'}},`NT$ ${fmt(ti)}`),td({style:{textAlign:'right',fontWeight:'700',color:'#854F0B',borderTop:'2px solid #e0e0e0'}},`NT$ ${fmt(tr2)}`),td({style:{textAlign:'right',fontWeight:'700',color:'#A32D2D',borderTop:'2px solid #e0e0e0'}},`NT$ ${fmt(tw)}`),td({style:{textAlign:'right',fontWeight:'700',color:'#A32D2D',borderTop:'2px solid #e0e0e0'}},`NT$ ${fmt(tm)}`),td({style:{textAlign:'right',fontWeight:'700',borderTop:'2px solid #e0e0e0'}},`NT$ ${fmt(tiv)}`),td({style:{textAlign:'right',fontWeight:'700',color:gp>=0?'#185FA5':'#A32D2D',background:gp>=0?'#E3F2FD':'#FFEBEE',borderTop:'2px solid #e0e0e0'}},`NT$ ${fmt(gp)}`)));
     }
+    tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
+    const grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:'10px'}});
+    entries.forEach(([site,v])=>{
+      const exp=v.worker+v.material,p=v.received-exp;
+      const c2=div({class:'card',style:{marginBottom:'0',borderLeft:`3px solid ${p>=0?accent:'#E24B4A'}`}});
+      c2.appendChild(div({style:{fontWeight:'700',fontSize:'13px',marginBottom:'8px'}},site));
+      const g=div({style:{display:'grid',gridTemplateColumns:'1fr auto',gap:'3px 10px',fontSize:'12px'}});
+      [[true,'已收款',`NT$ ${fmt(v.received)}`,accent,'500'],[v.reserved>0,'保留款',`NT$ ${fmt(v.reserved)}`,'#854F0B','400'],[v.worker>0,'工人支出',`-NT$ ${fmt(v.worker)}`,'#A32D2D','400'],[v.material>0,'五金材料',`-NT$ ${fmt(v.material)}`,'#A32D2D','400'],[v.invoice>0,'開出發票',`NT$ ${fmt(v.invoice)}`,'#1a1a1a','400']].forEach(([show,l,val,color,fw])=>{if(!show)return;g.appendChild(span({style:{color:'#888'}},l));g.appendChild(span({style:{textAlign:'right',color,fontWeight:fw}},val));});
+      c2.appendChild(g);
+      c2.appendChild(div({style:{borderTop:'0.5px solid #e0e0e0',marginTop:'8px',paddingTop:'7px',display:'flex',justifyContent:'space-between'}},span({style:{fontSize:'11px',color:'#888'}},'損益'),span({style:{fontWeight:'700',fontSize:'15px',color:p>=0?'#185FA5':'#A32D2D'}},`NT$ ${fmt(p)}`)));
+      grid.appendChild(c2);
+    });
+    main.appendChild(grid);
+  }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
+  // 收款管理
+  if(view==='checks'){
+    const invTotal=invoices.reduce((s,r)=>s+(Number(r.total_amount)||0),0);
+    const mg=div({class:'mg'});
+    mg.appendChild(metric('發票總額',`NT$ ${fmt(invTotal)}`,'#378ADD'));
+    mg.appendChild(metric('已收款',`NT$ ${fmt(totalIncome)}`,accent));
+    mg.appendChild(metric('未收款',`NT$ ${fmt(totalReserved)}`,'#E24B4A'));
+    main.appendChild(mg);
+    const topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
+    const pills=div({style:{display:'flex',gap:'6px'}});
+    ['全部','未收完','已結清'].forEach(f=>pills.appendChild(pill(f,checkFilter===f,accent,()=>upd({checkFilter:f}))));
+    topRow.appendChild(pills);
+    topRow.appendChild(mkBtn('+ 新增發票',accent,'#fff',()=>upd({modal:'inv',editInvId:null,invForm:emptyInv(),addingSite:false,addingVendor:false})));
+    main.appendChild(topRow);
+    if(!filteredChecks.length)main.appendChild(div({class:'card',style:{textAlign:'center',color:'#888',padding:'36px'}},'尚無紀錄'));
+    filteredChecks.forEach(function(inv){
+      const net=getNet(inv),paid=getPaid(inv),reserved=Math.max(0,net-paid);
+      const pct=net>0?Math.round(paid/net*100):0,settled=reserved<=0;
+      const card=div({class:'card',style:{borderLeft:`3px solid ${settled?accent:'#BA7517'}`}});
+      const top=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'6px'}});
+      const left=div({});
+      left.appendChild(span({style:{fontWeight:'700',fontSize:'14px'}},inv.vendor||inv.site));
+      if(inv.inv_no)left.appendChild(span({style:{fontSize:'11px',color:'#888',marginLeft:'8px'}},`發票 ${inv.inv_no}`));
+      left.appendChild(div({style:{fontSize:'11px',color:'#888',marginTop:'2px'}},`${inv.site} · ${inv.date}`));
+      const right=div({style:{display:'flex',alignItems:'center',gap:'6px'}});
+      const amtBox=div({style:{textAlign:'right'}});
+      amtBox.appendChild(div({style:{fontWeight:'700',fontSize:'15px'}},`NT$ ${fmt(Number(inv.total_amount)||0)}`));
+      if(Number(inv.discount)>0)amtBox.appendChild(div({style:{fontSize:'11px',color:'#A32D2D'}},`折讓 -NT$ ${fmt(inv.discount)}`));
+      amtBox.appendChild(div({style:{fontSize:'10px',color:'#888'}},Number(inv.discount)>0?`實收 NT$ ${fmt(net)}`:'發票金額'));
+      right.appendChild(amtBox);
+      const invId=inv.id;
+      const editInvBtn=document.createElement('button');
+      editInvBtn.textContent='✎';editInvBtn.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:4px 6px;cursor:pointer;color:#888;';
+      editInvBtn.addEventListener('click',function(){upd({modal:'inv',editInvId:invId,invForm:Object.assign({},inv),addingSite:false,addingVendor:false});});
+      right.appendChild(editInvBtn);
+      const delInvBtn=document.createElement('button');
+      delInvBtn.textContent='✕';delInvBtn.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:4px 6px;cursor:pointer;color:#A32D2D;';
+      delInvBtn.addEventListener('click',function(){delInvoice(invId);});
+      right.appendChild(delInvBtn);
+      top.appendChild(left);top.appendChild(right);card.appendChild(top);
+      const pr=div({style:{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'4px'}});
+      const ps=span({style:{color:accent}},'已收款 ');ps.appendChild(make('strong',{},`NT$ ${fmt(paid)}`));pr.appendChild(ps);
+      if(reserved>0){const rs=span({style:{color:'#A32D2D'}},'未收款 ');rs.appendChild(make('strong',{},`NT$ ${fmt(reserved)}`));pr.appendChild(rs);}
+      else pr.appendChild(span({style:{color:accent,fontWeight:'600'}},'✓ 已結清'));
+      card.appendChild(pr);
+      const bar=div({style:{height:'6px',background:'#f0f0f0',borderRadius:'3px',overflow:'hidden',marginBottom:'4px'}});
+      bar.appendChild(div({style:{height:'100%',width:`${pct}%`,background:settled?accent:'#F0A500',borderRadius:'3px'}}));
+      card.appendChild(bar);
+      card.appendChild(div({style:{fontSize:'10px',color:'#888',marginBottom:'10px'}},`已收 ${pct}%${reserved>0?` · 差距 NT$ ${fmt(reserved)}`:''}`));
+      if((inv.payments||[]).length){
+        const pb=div({style:{background:'#f5f5f7',borderRadius:'8px',padding:'8px 12px',marginBottom:'8px'}});
+        pb.appendChild(div({style:{fontSize:'11px',fontWeight:'600',color:'#888',marginBottom:'6px'}},'收款紀錄'));
+        inv.payments.forEach(function(p){
+          const pid=p.id,rid=inv.id;
+          const prow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:'12px',padding:'4px 0',borderBottom:'0.5px solid #e0e0e0',gap:'6px'}});
+          prow.appendChild(span({style:{color:'#888',minWidth:'70px'}},p.date));
+          if(p.check_date)prow.appendChild(span({style:{color:'#854F0B',minWidth:'70px'}},`票期 ${p.check_date}`));
+          prow.appendChild(span({style:{color:accent,fontWeight:'600'}},`+NT$ ${fmt(p.amount)}`));
+          prow.appendChild(span({style:{color:'#888'}},p.method));
+          prow.appendChild(span({style:{flex:'1',color:'#888',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},p.note||''));
+          const dBtn=document.createElement('button');
+          dBtn.textContent='✕';dBtn.style.cssText='background:none;border:none;cursor:pointer;color:#ccc;font-size:13px;padding:0 2px;';
+          dBtn.addEventListener('click',function(){delPayment(rid,pid);});
+          prow.appendChild(dBtn);pb.appendChild(prow);
+        });
+        card.appendChild(pb);
+      }
+      if(!settled){
+        const addPayBtn=document.createElement('button');
+        addPayBtn.textContent='+ 新增收款記錄';
+        addPayBtn.style.cssText=`width:100%;padding:8px;background:#E8F5E9;border:0.5px solid ${accent};border-radius:8px;cursor:pointer;color:${accent};font-weight:600;font-size:13px;`;
+        addPayBtn.addEventListener('click',function(){upd({modal:'pay',payModalId:inv.id,payEntry:emptyPay()});});
+        card.appendChild(addPayBtn);
+      }
+      main.appendChild(card);
+    });
+  }
+
+  // 支出管理
+  if(view==='expenses'){
+    const topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
+    const pills=div({style:{display:'flex',gap:'6px'}});
+    ['全部',...EXPENSE_CATS].forEach(f=>pills.appendChild(pill(f,expFilter===f,accent,()=>upd({expFilter:f}))));
+    topRow.appendChild(pills);
+    topRow.appendChild(mkBtn('+ 新增支出','#E24B4A','#fff',()=>upd({modal:'exp',editExpId:null,expForm:emptyExp(),addingSite:false,addingVendor:false})));
+    main.appendChild(topRow);
+    const mg=div({class:'mg'});
+    mg.appendChild(metric('支出合計',`NT$ ${fmt(totalExpense)}`,'#E24B4A'));
+    EXPENSE_CATS.forEach(c=>mg.appendChild(metric(c,`NT$ ${fmt(expItems.filter(e=>e.category===c).reduce((s,e)=>s+(Number(e.amount)||0),0))}`,'#BA7517')));
+    main.appendChild(mg);
+    const card=div({class:'card'});const ow=div({style:{overflowX:'auto'}});
+    const tbl=make('table',{class:'tbl'});
+    tbl.appendChild(make('thead',{},tr(th({},'日期'),th({},'工地'),th({},'廠商'),th({},'費用類別'),th({},'金額'),th({},'備註'),th({},''))));
+    const tbody=make('tbody');
+    if(!filteredExp.length)tbody.appendChild(tr(make('td',{colspan:7,style:{textAlign:'center',color:'#888',padding:'28px'}},'尚無支出紀錄')));
+    filteredExp.forEach(function(e){
+      const eid=e.id;
+      const badge=span({style:{display:'inline-block',padding:'2px 7px',borderRadius:'4px',fontSize:'11px',fontWeight:'500',background:e.category==='工人支出'?'#FAEEDA':'#E6F1FB',color:e.category==='工人支出'?'#854F0B':'#185FA5'}},e.category);
+      const editB=document.createElement('button');
+      editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
+      editB.addEventListener('click',function(){upd({modal:'exp',editExpId:eid,expForm:Object.assign({},e),addingSite:false,addingVendor:false});});
+      const delB=document.createElement('button');
+      delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
+      delB.addEventListener('click',function(){delExpItem(eid);});
+      const opTd=td({});opTd.appendChild(editB);opTd.appendChild(delB);
+      tbody.appendChild(tr(td({},e.date),td({},e.site),td({},e.vendor||'-'),td({},badge),td({style:{color:'#A32D2D',fontWeight:'600'}},`NT$ ${fmt(e.amount)}`),td({style:{maxWidth:'130px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},e.note||'-'),opTd));
+    });
+    tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
+  }
+
+  // 帳務紀錄
+  if(view==='ledger'){
+    const topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
+    const left=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
+    const si=make('input',{type:'text',placeholder:'搜尋工地/廠商...',style:{width:'160px'},value:search});
+    si.addEventListener('input',e=>upd({search:e.target.value}));
+    left.appendChild(si);
+    left.appendChild(mkSel(filterSite,[['全部','全部'],...sites.map(x=>[x,x])],v=>upd({filterSite:v})));
+    topRow.appendChild(left);
+    topRow.appendChild(span({style:{fontSize:'12px',color:'#888'}},`共 ${ledger.length} 筆`));
+    main.appendChild(topRow);
+    const card=div({class:'card'});const ow=div({style:{overflowX:'auto'}});
+    const tbl=make('table',{class:'tbl'});
+    tbl.appendChild(make('thead',{},tr(th({},'日期'),th({},'工地'),th({},'廠商'),th({},'類型'),th({},'收/支'),th({},'發票金額'),th({},'已收/已付'),th({},'保留款'),th({},'備註'))));
+    const tbody=make('tbody');
+    if(!ledger.length)tbody.appendChild(tr(make('td',{colspan:9,style:{textAlign:'center',color:'#888',padding:'28px'}},'尚無紀錄')));
+    ledger.forEach(r=>{
+      const typeBadge=span({style:{display:'inline-block',padding:'2px 7px',borderRadius:'4px',fontSize:'11px',fontWeight:'500',background:r.io==='收入'?'#E1F5EE':'#F3F4F6',color:r.io==='收入'?accent:'#555'}},r.type);
+      const ioBadge=span({style:{display:'inline-block',padding:'2px 7px',borderRadius:'4px',fontSize:'11px',fontWeight:'500',background:r.io==='收入'?'#EAF3DE':'#FCEBEB',color:r.io==='收入'?'#3B6D11':'#A32D2D'}},r.io);
+      tbody.appendChild(tr(td({},r.date),td({},r.site),td({},r.vendor||'-'),td({},typeBadge),td({},ioBadge),td({style:{fontWeight:'600'}},`NT$ ${fmt(r.amount)}`),td({style:{color:r.io==='收入'?accent:'#A32D2D',fontWeight:'500'}},`NT$ ${fmt(r.paid)}`),td({style:{color:r.reserved>0?'#854F0B':'#3B6D11'}},r.reserved>0?`NT$ ${fmt(r.reserved)}`:'✓'),td({style:{maxWidth:'120px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},r.note||'-')));
+    });
+    tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
+  }
+
+  // 公司支出
+  if(view==='company_exp'){
+    const topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px'}});
+    topRow.appendChild(div({style:{fontWeight:'600',fontSize:'14px'}},'公司固定支出'));
+    topRow.appendChild(mkBtn('+ 新增',accent,'#fff',()=>upd({modal:'compExp',editCompExpId:null,compExpForm:emptyCompExp()})));
+    main.appendChild(topRow);
+    const byFreq={};FREQ_OPTS.forEach(f=>byFreq[f]=[]);companyExp.forEach(e=>{if(byFreq[e.freq])byFreq[e.freq].push(e);});
+    const mg=div({class:'mg'});
+    FREQ_OPTS.filter(f=>byFreq[f].length).forEach(f=>mg.appendChild(metric(f,`NT$ ${fmt(byFreq[f].reduce((s,e)=>s+(Number(e.amount)||0),0))}`,accent)));
+    mg.appendChild(metric('全部合計',`NT$ ${fmt(totalCompanyExp)}`,'#E24B4A'));
+    main.appendChild(mg);
+    FREQ_OPTS.filter(f=>byFreq[f].length).forEach(function(f){
+      const card=div({class:'card'});
+      const tot=byFreq[f].reduce((s,e)=>s+(Number(e.amount)||0),0);
+      const title=div({style:{fontWeight:'600',fontSize:'13px',marginBottom:'8px'}},`${f}支出 `);
+      title.appendChild(span({style:{color:'#A32D2D',fontWeight:'400'}},`NT$ ${fmt(tot)}`));
+      card.appendChild(title);
+      const tbl=make('table',{class:'tbl'});
+      tbl.appendChild(make('thead',{},tr(th({},'項目'),th({},'區間'),th({},'金額'),th({},'備註'),th({},'操作'))));
+      const tbody=make('tbody');
+      byFreq[f].forEach(function(e){
+        const eid=e.id;
+        const editB=document.createElement('button');
+        editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
+        editB.addEventListener('click',function(){upd({modal:'compExp',editCompExpId:eid,compExpForm:Object.assign({},e)});});
+        const delB=document.createElement('button');
+        delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
+        delB.addEventListener('click',function(){delCompExp(eid);});
+        const opTd=td({});opTd.appendChild(editB);opTd.appendChild(delB);
+        tbody.appendChild(tr(td({style:{fontWeight:'500'}},e.item),td({},e.period||'-'),td({style:{color:'#A32D2D',fontWeight:'500'}},`NT$ ${fmt(e.amount)}`),td({},e.note||'-'),opTd));
+      });
+      tbl.appendChild(tbody);card.appendChild(tbl);main.appendChild(card);
+    });
+    if(!companyExp.length)main.appendChild(div({class:'card',style:{textAlign:'center',color:'#888',padding:'32px'}},'尚無支出紀錄'));
+  }
+
+  // 分帳記錄
+  if(view==='split'){
+    const topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
+    const left=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
+    left.appendChild(div({style:{fontWeight:'600',fontSize:'14px'}},'分帳記錄'));
+    left.appendChild(mkSel(splitSite,[['全部','全部'],...sites.map(x=>[x,x])],v=>upd({splitSite:v})));
+    topRow.appendChild(left);
+    topRow.appendChild(mkBtn('+ 新增分帳',accent,'#fff',()=>upd({modal:'split',editSplitId:null,splitForm:emptySplit()})));
+    main.appendChild(topRow);
+    const mg=div({class:'mg'});
+    mg.appendChild(metric('累計分給吉哥',`NT$ ${fmt(filteredSplits.reduce((s,r)=>s+(Number(r.geo)||0),0))}`,accent));
+    mg.appendChild(metric('累計分給姐姐',`NT$ ${fmt(filteredSplits.reduce((s,r)=>s+(Number(r.sister)||0),0))}`,'#BA7517'));
+    mg.appendChild(metric('累計總額',`NT$ ${fmt(filteredSplits.reduce((s,r)=>s+(Number(r.geo)||0)+(Number(r.sister)||0),0))}`,'#6B5EA8'));
+    main.appendChild(mg);
+    if(!filteredSplits.length)main.appendChild(div({class:'card',style:{textAlign:'center',color:'#888',padding:'36px'}},'尚無分帳紀錄'));
+    else{
+      const card=div({class:'card'});const ow=div({style:{overflowX:'auto'}});
+      const tbl=make('table',{class:'tbl'});
+      tbl.appendChild(make('thead',{},tr(th({},'日期'),th({},'工地'),th({},'分給吉哥'),th({},'分給姐姐'),th({},'備註'),th({},'操作'))));
+      const tbody=make('tbody');
+      filteredSplits.forEach(function(r){
+        const sid=r.id;
+        const editB=document.createElement('button');
+        editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
+        editB.addEventListener('click',function(){upd({modal:'split',editSplitId:sid,splitForm:Object.assign({},r)});});
+        const delB=document.createElement('button');
+        delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
+        delB.addEventListener('click',function(){delSplit(sid);});
+        const opTd=td({});opTd.appendChild(editB);opTd.appendChild(delB);
+        tbody.appendChild(tr(td({},r.date),td({},r.site||'-'),td({style:{color:accent,fontWeight:'600'}},r.geo?`NT$ ${fmt(r.geo)}`:'-'),td({style:{color:'#854F0B',fontWeight:'600'}},r.sister?`NT$ ${fmt(r.sister)}`:'-'),td({style:{maxWidth:'150px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},r.note||'-'),opTd));
+      });
+      tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
+    }
+  }
+
+  // 損益報表
+  if(view==='profit'){
+    const mg=div({class:'mg'});
+    mg.appendChild(metric('已收款',`NT$ ${fmt(totalIncome)}`,accent));
+    mg.appendChild(metric('公司固定支出',`NT$ ${fmt(totalCompanyExp)}`,'#E24B4A'));
+    mg.appendChild(metric('工地損益',`NT$ ${fmt(grandProfit)}`,grandProfit>=0?'#378ADD':'#E24B4A'));
+    mg.appendChild(metric('總損益',`NT$ ${fmt(grandProfit-totalCompanyExp)}`,'#6B5EA8'));
+    mg.appendChild(metric('每人可分',`NT$ ${fmt(Math.round((grandProfit-totalCompanyExp)/2))}`,'#BA7517'));
+    main.appendChild(mg);
+    main.appendChild(div({class:'card',style:{textAlign:'center',color:'#888',fontSize:'13px',padding:'20px'}},'詳細各工地損益一覽請至「總覽」頁面查看'));
+  }
+
+  app.appendChild(main);
+
+  if(modal==='inv')app.appendChild(renderInvModal());
+  if(modal==='exp')app.appendChild(renderExpModal());
+  if(modal==='pay'&&payModalId)app.appendChild(renderPayModal());
+  if(modal==='compExp')app.appendChild(renderCompExpModal());
+  if(modal==='split')app.appendChild(renderSplitModal());
+}
+
+render();
+</script>
 </body>
 </html>

@@ -26,41 +26,45 @@ button{cursor:pointer;font-family:inherit;}
 <body>
 <div id="app"></div>
 <script>
-const fmt=n=>isNaN(n)||n===''?'0':Number(n).toLocaleString('zh-TW');
-const today=()=>new Date().toISOString().split('T')[0];
-const mk=(co,k)=>`hs26_${co}_${k}`;
-const DEF_SITES=['板橋遠雄'];
-const DEF_VENDORS=['吉諦','哲在'];
-const CO_COLOR={'竑順':'#1D9E75','吉諦':'#378ADD'};
-const EXPENSE_CATS=['工人支出','五金材料支出'];
-const FREQ_OPTS=['每月','每兩月','每季','每年','單次'];
-const PAY_METHODS=['現金收款','銀行匯款','支票'];
+var fmt=function(n){return isNaN(n)||n===''?'0':Number(n).toLocaleString('zh-TW');};
+var today=function(){return new Date().toISOString().split('T')[0];};
+var mk=function(co,k){return 'hs26_'+co+'_'+k;};
+var DEF_SITES=['板橋遠雄'];
+var DEF_VENDORS=['吉諦','哲在'];
+var CO_COLOR={'竑順':'#1D9E75','吉諦':'#378ADD'};
+var EXPENSE_CATS=['工人支出','五金材料支出'];
+var FREQ_OPTS=['每月','每兩月','每季','每年','單次'];
+var PAY_METHODS=['現金收款','銀行匯款','支票'];
 
-function store_get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}}
-function store_set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+function store_get(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
+function store_set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 
-function make(tag,props,...kids){
-  const e=document.createElement(tag);
-  if(props)Object.keys(props).forEach(k=>{
-    if(k==='class')e.className=props[k];
-    else if(k==='style'&&typeof props[k]==='object')Object.assign(e.style,props[k]);
-    else if(k==='onclick')e.addEventListener('click',props[k]);
-    else e[k]=props[k];
-  });
-  kids.flat(9).forEach(c=>{
+function make(tag,props){
+  var kids=Array.prototype.slice.call(arguments,2);
+  var e=document.createElement(tag);
+  if(props){
+    Object.keys(props).forEach(function(k){
+      if(k==='class')e.className=props[k];
+      else if(k==='style'&&typeof props[k]==='object')Object.assign(e.style,props[k]);
+      else if(k==='onclick')e.addEventListener('click',props[k]);
+      else e[k]=props[k];
+    });
+  }
+  kids.forEach(function(c){
     if(c==null)return;
-    e.appendChild(c instanceof Node?c:document.createTextNode(String(c)));
+    if(Array.isArray(c)){c.forEach(function(cc){if(cc!=null)e.appendChild(cc instanceof Node?cc:document.createTextNode(String(cc)));});}
+    else e.appendChild(c instanceof Node?c:document.createTextNode(String(c)));
   });
   return e;
 }
-const div=(p,...k)=>make('div',p,...k);
-const span=(p,...k)=>make('span',p,...k);
-const td=(p,...k)=>make('td',p,...k);
-const th=(p,...k)=>make('th',p,...k);
-const tr=(...k)=>make('tr',null,...k);
+function div(p){var k=Array.prototype.slice.call(arguments,1);return make.apply(null,['div',p].concat(k));}
+function span(p){var k=Array.prototype.slice.call(arguments,1);return make.apply(null,['span',p].concat(k));}
+function td(p){var k=Array.prototype.slice.call(arguments,1);return make.apply(null,['td',p].concat(k));}
+function th(p){var k=Array.prototype.slice.call(arguments,1);return make.apply(null,['th',p].concat(k));}
+function tr(){var k=Array.prototype.slice.call(arguments);return make.apply(null,['tr',null].concat(k));}
 
 function mkBtn(text,bg,color,onclick,extra){
-  const b=document.createElement('button');
+  var b=document.createElement('button');
   b.textContent=text;
   Object.assign(b.style,{background:bg,color:color,border:'none',borderRadius:'6px',padding:'6px 12px',fontSize:'12px',fontWeight:'600',whiteSpace:'nowrap',cursor:'pointer'});
   if(extra)Object.assign(b.style,extra);
@@ -68,41 +72,41 @@ function mkBtn(text,bg,color,onclick,extra){
   return b;
 }
 function ghostBtn(text,onclick,color){
-  const b=document.createElement('button');
+  var b=document.createElement('button');
   b.textContent=text;
   Object.assign(b.style,{background:'transparent',border:'0.5px solid #ccc',borderRadius:'6px',padding:'5px 10px',fontSize:'12px',color:color||'#888',cursor:'pointer'});
   b.addEventListener('click',onclick);
   return b;
 }
 function pill(text,active,color,onclick){
-  const b=document.createElement('button');
+  var b=document.createElement('button');
   b.textContent=text;
   Object.assign(b.style,{padding:'5px 14px',borderRadius:'20px',border:'none',fontSize:'12px',fontWeight:active?'600':'400',background:active?color:'#f0f0f0',color:active?'#fff':'#888',cursor:'pointer'});
   b.addEventListener('click',onclick);
   return b;
 }
 function metric(label,value,color){
-  const d=div({style:{background:'#f5f5f7',borderRadius:'8px',padding:'11px 13px',borderLeft:`3px solid ${color}`}});
+  var d=div({style:{background:'#f5f5f7',borderRadius:'8px',padding:'11px 13px',borderLeft:'3px solid '+color}});
   d.appendChild(div({style:{fontSize:'11px',color:'#888',marginBottom:'2px'}},label));
   d.appendChild(div({style:{fontSize:'16px',fontWeight:'600',color:color}},value));
   return d;
 }
 function lbl(text){return make('label',{style:{fontSize:'11px',color:'#888',marginBottom:'3px',display:'block'}},text);}
 function field(labelText,inputEl,full){
-  const d=div({style:full?{gridColumn:'1/-1'}:{}});
+  var d=div({style:full?{gridColumn:'1/-1'}:{}});
   d.appendChild(lbl(labelText));
   d.appendChild(inputEl);
   return d;
 }
 function mkInp(val,onchange,type,ph){
-  const e=make('input',{type:type||'text',value:val||'',placeholder:ph||''});
+  var e=make('input',{type:type||'text',value:val||'',placeholder:ph||''});
   e.addEventListener('input',function(ev){onchange(ev.target.value);});
   return e;
 }
 function mkSel(val,opts,onchange){
-  const e=make('select',{});
+  var e=make('select',{});
   opts.forEach(function(o){
-    const opt=make('option',{value:o[0]},o[1]||o[0]);
+    var opt=make('option',{value:o[0]},o[1]||o[0]);
     if(String(o[0])===String(val))opt.selected=true;
     e.appendChild(opt);
   });
@@ -110,12 +114,11 @@ function mkSel(val,opts,onchange){
   return e;
 }
 function mkTa(val,onchange,ph){
-  const e=make('textarea',{placeholder:ph||'',style:{height:'50px',resize:'vertical'}},val||'');
+  var e=make('textarea',{placeholder:ph||'',style:{height:'50px',resize:'vertical'}},val||'');
   e.addEventListener('input',function(ev){onchange(ev.target.value);});
   return e;
 }
 
-// ── 狀態 ──────────────────────────────────────────────
 var ST={
   co:null,view:'dashboard',
   invoices:[],expItems:[],companyExp:[],splits:[],
@@ -140,7 +143,6 @@ function emptyPay(){return{date:today(),check_date:'',amount:'',method:'現金�
 function emptySplit(){return{date:today(),site:'',geo:'',sister:'',note:''};}
 function emptyCompExp(){return{item:'',period:'',amount:'',freq:'每月',note:''};}
 
-// ── 初始資料 ─────────────────────────────────────────
 function initDefaultData(co){
   var initKey=mk(co,'init_v1');
   if(store_get(initKey))return;
@@ -179,7 +181,6 @@ function initDefaultData(co){
   store_set(initKey,true);
 }
 
-// ── 每月自動新增固定支出 ──────────────────────────────
 function autoAddMonthlyExpenses(co){
   if(co!=='竑順')return;
   var now=new Date();
@@ -192,11 +193,9 @@ function autoAddMonthlyExpenses(co){
     return {id:Date.now()+Math.random(),item:f.item,period:ym,amount:f.amount,freq:'每月',note:ym+' 自動新增'};
   });
   if(!toAdd.length)return;
-  var updated=toAdd.concat(existing);
-  store_set(mk(co,'company_exp'),updated);
+  store_set(mk(co,'company_exp'),toAdd.concat(existing));
 }
 
-// ── 載入資料 ──────────────────────────────────────────
 function loadAll(co){
   initDefaultData(co);
   autoAddMonthlyExpenses(co);
@@ -210,7 +209,6 @@ function loadAll(co){
   upd(p);
 }
 
-// ── 計算 ──────────────────────────────────────────────
 var getNet=function(r){return Math.max(0,(Number(r.total_amount)||0)-(Number(r.discount)||0));};
 var getPaid=function(r){return (r.payments||[]).reduce(function(s,p){return s+(Number(p.amount)||0);},0);};
 var getReserved=function(r){return Math.max(0,getNet(r)-getPaid(r));};
@@ -230,68 +228,67 @@ function siteStats(){
   return m;
 }
 
-// ── Actions ───────────────────────────────────────────
-function delInvoice(id){if(!confirm('確定刪除此發票？'))return;var invoices=ST.invoices.filter(function(r){return r.id!==id;});saveK('invoices',invoices);upd({invoices:invoices});}
+function delInvoice(id){if(!confirm('確定刪除此發票？'))return;var inv=ST.invoices.filter(function(r){return r.id!==id;});saveK('invoices',inv);upd({invoices:inv});}
 function delPayment(invId,payId){
-  var invoices=ST.invoices.map(function(r){
+  var inv=ST.invoices.map(function(r){
     if(r.id!==invId)return r;
     return Object.assign({},r,{payments:r.payments.filter(function(p){return p.id!==payId;})});
   });
-  saveK('invoices',invoices);upd({invoices:invoices});
+  saveK('invoices',inv);upd({invoices:inv});
 }
-function delExpItem(id){if(!confirm('確定刪除？'))return;var expItems=ST.expItems.filter(function(r){return r.id!==id;});saveK('expenses',expItems);upd({expItems:expItems});}
-function delCompExp(id){var companyExp=ST.companyExp.filter(function(e){return e.id!==id;});saveK('company_exp',companyExp);upd({companyExp:companyExp});}
-function delSplit(id){var splits=ST.splits.filter(function(s){return s.id!==id;});saveK('splits',splits);upd({splits:splits});}
+function delExpItem(id){if(!confirm('確定刪除？'))return;var exp=ST.expItems.filter(function(r){return r.id!==id;});saveK('expenses',exp);upd({expItems:exp});}
+function delCompExp(id){var ce=ST.companyExp.filter(function(e){return e.id!==id;});saveK('company_exp',ce);upd({companyExp:ce});}
+function delSplit(id){var sp=ST.splits.filter(function(s){return s.id!==id;});saveK('splits',sp);upd({splits:sp});}
 
 function saveInvoice(){
   var f=ST.invForm;
   if(!f.total_amount||!f.site)return alert('請填寫工地和發票金額');
   var rec=Object.assign({},f,{id:ST.editInvId||Date.now(),payments:f.payments||[]});
-  var invoices=ST.editInvId?ST.invoices.map(function(r){return r.id===ST.editInvId?rec:r;}):[rec].concat(ST.invoices);
-  saveK('invoices',invoices);upd({invoices:invoices,modal:null,editInvId:null});
+  var inv=ST.editInvId?ST.invoices.map(function(r){return r.id===ST.editInvId?rec:r;}):[rec].concat(ST.invoices);
+  saveK('invoices',inv);upd({invoices:inv,modal:null,editInvId:null});
 }
 function saveExpItem(){
   var f=ST.expForm;
   if(!f.amount||!f.site)return alert('請填寫工地和金額');
   var rec=Object.assign({},f,{id:ST.editExpId||Date.now()});
-  var expItems=ST.editExpId?ST.expItems.map(function(r){return r.id===ST.editExpId?rec:r;}):[rec].concat(ST.expItems);
-  saveK('expenses',expItems);upd({expItems:expItems,modal:null,editExpId:null});
+  var exp=ST.editExpId?ST.expItems.map(function(r){return r.id===ST.editExpId?rec:r;}):[rec].concat(ST.expItems);
+  saveK('expenses',exp);upd({expItems:exp,modal:null,editExpId:null});
 }
 function addPayment(){
   var f=ST.payEntry;
   if(!f.amount)return alert('請填寫金額');
-  var invoices=ST.invoices.map(function(r){
+  var inv=ST.invoices.map(function(r){
     if(r.id!==ST.payModalId)return r;
     return Object.assign({},r,{payments:(r.payments||[]).concat([Object.assign({},f,{id:Date.now()})])});
   });
-  saveK('invoices',invoices);upd({invoices:invoices,modal:null,payModalId:null,payEntry:emptyPay()});
+  saveK('invoices',inv);upd({invoices:inv,modal:null,payModalId:null,payEntry:emptyPay()});
 }
 function saveCompExp(){
   var f=ST.compExpForm;
   if(!f.item||!f.amount)return alert('請填寫項目和金額');
   var rec=Object.assign({},f,{id:ST.editCompExpId||Date.now()});
-  var companyExp=ST.editCompExpId?ST.companyExp.map(function(e){return e.id===ST.editCompExpId?rec:e;}):[rec].concat(ST.companyExp);
-  saveK('company_exp',companyExp);upd({companyExp:companyExp,modal:null,editCompExpId:null});
+  var ce=ST.editCompExpId?ST.companyExp.map(function(e){return e.id===ST.editCompExpId?rec:e;}):[rec].concat(ST.companyExp);
+  saveK('company_exp',ce);upd({companyExp:ce,modal:null,editCompExpId:null});
 }
 function saveSplit(){
   var f=ST.splitForm;
   if(!f.date)return alert('請填寫日期');
   var rec=Object.assign({},f,{id:ST.editSplitId||Date.now()});
-  var splits=ST.editSplitId?ST.splits.map(function(s){return s.id===ST.editSplitId?rec:s;}):[rec].concat(ST.splits);
-  saveK('splits',splits);upd({splits:splits,modal:null,editSplitId:null});
+  var sp=ST.editSplitId?ST.splits.map(function(s){return s.id===ST.editSplitId?rec:s;}):[rec].concat(ST.splits);
+  saveK('splits',sp);upd({splits:sp,modal:null,editSplitId:null});
 }
 function addSiteItem(val,cb){
   var v=val.trim();if(!v)return;
-  var sites=ST.sites.includes(v)?ST.sites:ST.sites.concat([v]);
+  var sites=ST.sites.indexOf(v)>=0?ST.sites:ST.sites.concat([v]);
   saveK('sites',sites);cb(v);upd({sites:sites,addingSite:false});
 }
 function addVendorItem(val,cb){
   var v=val.trim();if(!v)return;
-  var vendors=ST.vendors.includes(v)?ST.vendors:ST.vendors.concat([v]);
+  var vendors=ST.vendors.indexOf(v)>=0?ST.vendors:ST.vendors.concat([v]);
   saveK('vendors',vendors);cb(v);upd({vendors:vendors,addingVendor:false});
 }
-function delSiteItem(x){var sites=ST.sites.filter(function(s){return s!==x;});saveK('sites',sites);upd({sites:sites});}
-function delVendorItem(x){var vendors=ST.vendors.filter(function(v){return v!==x;});saveK('vendors',vendors);upd({vendors:vendors});}
+function delSiteItem(x){var s=ST.sites.filter(function(s){return s!==x;});saveK('sites',s);upd({sites:s});}
+function delVendorItem(x){var v=ST.vendors.filter(function(v){return v!==x;});saveK('vendors',v);upd({vendors:v});}
 
 function siteSelectUI(val,onChangeFn){
   var wrap=div({style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}});
@@ -349,7 +346,7 @@ function renderInvModal(){
   fg.appendChild(field('廠商',vendorSelectUI(f.vendor,function(v){setInvForm('vendor',v);}),true));
   fg.appendChild(field('發票日期',mkInp(f.inv_date,function(v){setInvForm('inv_date',v);},'date')));
   fg.appendChild(field('發票金額',mkInp(f.total_amount,function(v){setInvForm('total_amount',v);},'number','0')));
-  fg.appendChild(field('折讓金額',mkInp(f.discount,function(v){setInvForm('discount',v);},'number','0（無折讓可留空）')));
+  fg.appendChild(field('折讓金額',mkInp(f.discount,function(v){setInvForm('discount',v);},'number','0')));
   box.appendChild(fg);
   box.appendChild(field('備註',mkTa(f.note,function(v){setInvForm('note',v);},'備註...')));
   var row=div({style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'12px'}});
@@ -378,7 +375,8 @@ function renderExpModal(){
 }
 function renderPayModal(){
   var accent=CO_COLOR[ST.co];
-  var inv=ST.invoices.filter(function(r){return r.id===ST.payModalId;})[0];
+  var inv=null;
+  for(var i=0;i<ST.invoices.length;i++){if(ST.invoices[i].id===ST.payModalId){inv=ST.invoices[i];break;}}
   if(!inv)return null;
   var f=ST.payEntry;
   var box=div({class:'modal-sm'});
@@ -387,7 +385,7 @@ function renderPayModal(){
   var grid=div({style:{display:'grid',gap:'10px'}});
   grid.appendChild(field('收款日期',mkInp(f.date,function(v){setPayForm('date',v);},'date')));
   grid.appendChild(field('匯款／支票日期',mkInp(f.check_date,function(v){setPayForm('check_date',v);},'date')));
-  grid.appendChild(field('收款金額',mkInp(f.amount,function(v){setPayForm('amount',v);},'number','最多 NT$ '+fmt(getReserved(inv)))));
+  grid.appendChild(field('收款金額',mkInp(f.amount,function(v){setPayForm('amount',v);},'number','0')));
   grid.appendChild(field('收款方式',mkSel(f.method,PAY_METHODS.map(function(m){return[m,m];}),function(v){setPayForm('method',v);})));
   grid.appendChild(field('備註',mkInp(f.note,function(v){setPayForm('note',v);},'text','備註...')));
   box.appendChild(grid);
@@ -425,7 +423,7 @@ function renderSplitModal(){
   grid.appendChild(field('工地',mkSel(f.site||'',[['','請選擇工地']].concat(ST.sites.map(function(x){return[x,x];})),function(v){setSplitForm('site',v);})));
   grid.appendChild(field('分給吉哥（元）',mkInp(f.geo,function(v){setSplitForm('geo',v);},'number','0')));
   grid.appendChild(field('分給姐姐（元）',mkInp(f.sister,function(v){setSplitForm('sister',v);},'number','0')));
-  grid.appendChild(field('備註',mkInp(f.note,function(v){setSplitForm('note',v);},'text','例：板橋遠雄第一次分帳')));
+  grid.appendChild(field('備註',mkInp(f.note,function(v){setSplitForm('note',v);},'text','備註...')));
   box.appendChild(grid);
   var row=div({style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'16px'}});
   row.appendChild(ghostBtn('取消',function(){upd({modal:null});}));
@@ -438,8 +436,8 @@ function exportCSV(){
   var co=ST.co,invoices=ST.invoices,expItems=ST.expItems,companyExp=ST.companyExp,splits=ST.splits;
   var rows=[['#類型','日期','工地','廠商','發票號碼','發票日期','發票金額','折讓','備註','收款日期','票期日期','收款金額','收款方式','收款備註']];
   invoices.forEach(function(inv){
-    if(!(inv.payments||[]).length)rows.push(['發票',inv.date,inv.site,inv.vendor||'',inv.inv_no||'',inv.inv_date||'',inv.total_amount||'',inv.discount||'',inv.note||'','','','','','']);
-    else(inv.payments||[]).forEach(function(p,i){rows.push([i===0?'發票':'',i===0?inv.date:'',i===0?inv.site:'',i===0?(inv.vendor||''):'',i===0?(inv.inv_no||''):'',i===0?(inv.inv_date||''):'',i===0?(inv.total_amount||''):'',i===0?(inv.discount||''):'',i===0?(inv.note||''):'',p.date||'',p.check_date||'',p.amount||'',p.method||'',p.note||'']);});
+    if(!(inv.payments||[]).length){rows.push(['發票',inv.date,inv.site,inv.vendor||'',inv.inv_no||'',inv.inv_date||'',inv.total_amount||'',inv.discount||'',inv.note||'','','','','','']);}
+    else{(inv.payments||[]).forEach(function(p,i){rows.push([i===0?'發票':'',i===0?inv.date:'',i===0?inv.site:'',i===0?(inv.vendor||''):'',i===0?(inv.inv_no||''):'',i===0?(inv.inv_date||''):'',i===0?(inv.total_amount||''):'',i===0?(inv.discount||''):'',i===0?(inv.note||''):'',p.date||'',p.check_date||'',p.amount||'',p.method||'',p.note||'']);});}
   });
   rows.push([]);rows.push(['#類型','日期','工地','廠商','費用類別','金額','備註']);
   expItems.forEach(function(e){rows.push(['支出',e.date,e.site,e.vendor||'',e.category,e.amount||'',e.note||'']);});
@@ -471,18 +469,18 @@ function importCSV(file){
       if(ST.co==='竑順')saveK('company_exp',nc);
       if(ST.co==='吉諦')saveK('splits',ns);
       alert('匯入成功！');loadAll(ST.co);
-    }catch(err){alert('匯入失敗，請確認檔案格式正確。');}
+    }catch(err){alert('匯入失敗');}
   };
   reader.readAsText(file,'UTF-8');
 }
 
-// ── RENDER ────────────────────────────────────────────
 function render(){
   var app=document.getElementById('app');
   app.innerHTML='';
-  var co=ST.co,view=ST.view,invoices=ST.invoices,expItems=ST.expItems,companyExp=ST.companyExp,
-      splits=ST.splits,sites=ST.sites,vendors=ST.vendors,checkFilter=ST.checkFilter,
-      expFilter=ST.expFilter,filterSite=ST.filterSite,splitSite=ST.splitSite,
+  var co=ST.co,view=ST.view,invoices=ST.invoices,expItems=ST.expItems,
+      companyExp=ST.companyExp,splits=ST.splits,sites=ST.sites,
+      checkFilter=ST.checkFilter,expFilter=ST.expFilter,
+      filterSite=ST.filterSite,splitSite=ST.splitSite,
       search=ST.search,modal=ST.modal,payModalId=ST.payModalId;
 
   if(!co){
@@ -493,7 +491,7 @@ function render(){
     box.appendChild(div({style:{color:'#888',fontSize:'13px',marginBottom:'32px'}},'請選擇要操作的公司'));
     var btns=div({style:{display:'flex',gap:'16px',justifyContent:'center'}});
     ['竑順','吉諦'].forEach(function(c){
-      btns.appendChild(mkBtn(c,CO_COLOR[c],'#fff',function(){loadAll(c);},{borderRadius:'12px',padding:'24px 40px',fontSize:'18px',boxShadow:'0 4px 16px rgba(0,0,0,0.12)'}));
+      btns.appendChild(mkBtn(c,CO_COLOR[c],'#fff',(function(cc){return function(){loadAll(cc);};})(c),{borderRadius:'12px',padding:'24px 40px',fontSize:'18px',boxShadow:'0 4px 16px rgba(0,0,0,0.12)'}));
     });
     box.appendChild(btns);wrap.appendChild(box);app.appendChild(wrap);
     return;
@@ -512,14 +510,13 @@ function render(){
   var ledger=invoices.map(function(inv){return{id:'i'+inv.id,date:inv.date,site:inv.site,vendor:inv.vendor,type:'開出發票',io:'收入',amount:Number(inv.total_amount)||0,paid:getPaid(inv),reserved:getReserved(inv),inv_no:inv.inv_no,note:inv.note};})
     .concat(expItems.map(function(e){return{id:'e'+e.id,date:e.date,site:e.site,vendor:e.vendor,type:e.category,io:'支出',amount:Number(e.amount)||0,paid:Number(e.amount)||0,reserved:0,note:e.note};}))
     .sort(function(a,b){return b.date.localeCompare(a.date);})
-    .filter(function(r){return(filterSite==='全部'||r.site===filterSite)&&(!search||((r.site||'')+(r.vendor||'')+(r.inv_no||'')+(r.note||'')).includes(search));});
+    .filter(function(r){return(filterSite==='全部'||r.site===filterSite)&&(!search||((r.site||'')+(r.vendor||'')+(r.inv_no||'')+(r.note||'')).indexOf(search)>=0);});
 
   var navItems=[['dashboard','總覽'],['checks','收款管理'],['expenses','支出管理'],['ledger','帳務紀錄']];
   if(co==='竑順')navItems.push(['company_exp','公司支出']);
   if(co==='吉諦')navItems.push(['split','分帳記錄']);
   navItems.push(['profit','損益報表']);
 
-  // Header
   var hdr=div({class:'hdr'});
   var homeBtn=document.createElement('button');
   homeBtn.textContent='🏗';homeBtn.style.cssText='background:none;border:none;font-size:20px;cursor:pointer;';
@@ -531,7 +528,7 @@ function render(){
     var b=document.createElement('button');
     b.textContent=c;
     b.style.cssText='background:'+(co===c?accent:'#f0f0f0')+';color:'+(co===c?'#fff':'#888')+';border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:'+(co===c?600:400)+';';
-    b.addEventListener('click',function(){if(co!==c)loadAll(c);});
+    b.addEventListener('click',(function(cc){return function(){if(co!==cc)loadAll(cc);};})(c));
     coSw.appendChild(b);
   });
   hdr.appendChild(coSw);
@@ -555,7 +552,6 @@ function render(){
 
   var main=div({class:'main'});
 
-  // ── 總覽 ──
   if(view==='dashboard'){
     var mg=div({class:'mg'});
     mg.appendChild(metric('已收款','NT$ '+fmt(totalIncome),accent));
@@ -572,27 +568,20 @@ function render(){
     thead.appendChild(tr(th({style:{minWidth:'90px'}},'工地'),th({style:{textAlign:'right',color:'#2E7D32'}},'已收款'),th({style:{textAlign:'right',color:'#854F0B'}},'保留款'),th({style:{textAlign:'right',color:'#A32D2D'}},'工人支出'),th({style:{textAlign:'right',color:'#A32D2D'}},'五金材料'),th({style:{textAlign:'right'}},'開出發票'),th({style:{textAlign:'right',fontWeight:'700'}},'損益')));
     tbl.appendChild(thead);
     var tbody=make('tbody');
-    var entries=Object.entries(stats);
+    var entries=Object.keys(stats).map(function(k){return[k,stats[k]];});
     if(!entries.length)tbody.appendChild(tr(make('td',{colspan:7,style:{textAlign:'center',color:'#888',padding:'24px'}},'尚無資料')));
     entries.forEach(function(entry){
-      var site=entry[0],v=entry[1];
-      var exp=v.worker+v.material,p=v.received-exp;
+      var site=entry[0],v=entry[1],exp=v.worker+v.material,p=v.received-exp;
       tbody.appendChild(tr(td({style:{fontWeight:'700'}},site),td({style:{textAlign:'right',color:accent,fontWeight:'500'}},'NT$ '+fmt(v.received)),td({style:{textAlign:'right',color:'#854F0B'}},v.reserved>0?'NT$ '+fmt(v.reserved):'-'),td({style:{textAlign:'right',color:'#A32D2D'}},v.worker>0?'NT$ '+fmt(v.worker):'-'),td({style:{textAlign:'right',color:'#A32D2D'}},v.material>0?'NT$ '+fmt(v.material):'-'),td({style:{textAlign:'right'}},v.invoice>0?'NT$ '+fmt(v.invoice):'-'),td({style:{textAlign:'right',fontWeight:'700',color:p>=0?'#185FA5':'#A32D2D',background:p>=0?'#F0F7FF':'#FFF5F5'}},'NT$ '+fmt(p))));
     });
     if(entries.length){
-      var ti=entries.reduce(function(s,e){return s+e[1].received;},0);
-      var tw=entries.reduce(function(s,e){return s+e[1].worker;},0);
-      var tm=entries.reduce(function(s,e){return s+e[1].material;},0);
-      var tiv=entries.reduce(function(s,e){return s+e[1].invoice;},0);
-      var tr2=entries.reduce(function(s,e){return s+e[1].reserved;},0);
-      var gp=ti-(tw+tm);
+      var ti=entries.reduce(function(s,e){return s+e[1].received;},0),tw=entries.reduce(function(s,e){return s+e[1].worker;},0),tm=entries.reduce(function(s,e){return s+e[1].material;},0),tiv=entries.reduce(function(s,e){return s+e[1].invoice;},0),tr2=entries.reduce(function(s,e){return s+e[1].reserved;},0),gp=ti-(tw+tm);
       tbody.appendChild(tr(td({style:{fontWeight:'700',borderTop:'2px solid #e0e0e0'}},'總計'),td({style:{textAlign:'right',fontWeight:'700',color:accent,borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(ti)),td({style:{textAlign:'right',fontWeight:'700',color:'#854F0B',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(tr2)),td({style:{textAlign:'right',fontWeight:'700',color:'#A32D2D',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(tw)),td({style:{textAlign:'right',fontWeight:'700',color:'#A32D2D',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(tm)),td({style:{textAlign:'right',fontWeight:'700',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(tiv)),td({style:{textAlign:'right',fontWeight:'700',color:gp>=0?'#185FA5':'#A32D2D',background:gp>=0?'#E3F2FD':'#FFEBEE',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(gp))));
     }
     tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
     var grid=div({style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:'10px'}});
     entries.forEach(function(entry){
-      var site=entry[0],v=entry[1];
-      var exp=v.worker+v.material,p=v.received-exp;
+      var site=entry[0],v=entry[1],exp=v.worker+v.material,p=v.received-exp;
       var c2=div({class:'card',style:{marginBottom:'0',borderLeft:'3px solid '+(p>=0?accent:'#E24B4A')}});
       c2.appendChild(div({style:{fontWeight:'700',fontSize:'13px',marginBottom:'8px'}},site));
       var g=div({style:{display:'grid',gridTemplateColumns:'1fr auto',gap:'3px 10px',fontSize:'12px'}});
@@ -604,7 +593,6 @@ function render(){
     main.appendChild(grid);
   }
 
-  // ── 收款管理 ──
   if(view==='checks'){
     var invTotal=invoices.reduce(function(s,r){return s+(Number(r.total_amount)||0);},0);
     var mg=div({class:'mg'});
@@ -614,14 +602,13 @@ function render(){
     main.appendChild(mg);
     var topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
     var pills=div({style:{display:'flex',gap:'6px'}});
-    ['全部','未收完','已結清'].forEach(function(f){pills.appendChild(pill(f,checkFilter===f,accent,function(){upd({checkFilter:f});}));});
+    ['全部','未收完','已結清'].forEach(function(f){pills.appendChild(pill(f,checkFilter===f,accent,(function(ff){return function(){upd({checkFilter:ff});};})(f)));});
     topRow.appendChild(pills);
     topRow.appendChild(mkBtn('+ 新增發票',accent,'#fff',function(){upd({modal:'inv',editInvId:null,invForm:emptyInv(),addingSite:false,addingVendor:false});}));
     main.appendChild(topRow);
     if(!filteredChecks.length)main.appendChild(div({class:'card',style:{textAlign:'center',color:'#888',padding:'36px'}},'尚無紀錄'));
     filteredChecks.forEach(function(inv){
-      var net=getNet(inv),paid=getPaid(inv),reserved=Math.max(0,net-paid);
-      var pct=net>0?Math.round(paid/net*100):0,settled=reserved<=0;
+      var net=getNet(inv),paid=getPaid(inv),reserved=Math.max(0,net-paid),pct=net>0?Math.round(paid/net*100):0,settled=reserved<=0;
       var card=div({class:'card',style:{borderLeft:'3px solid '+(settled?accent:'#BA7517')}});
       var top=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'6px'}});
       var left=div({});
@@ -635,14 +622,11 @@ function render(){
       amtBox.appendChild(div({style:{fontSize:'10px',color:'#888'}},Number(inv.discount)>0?'實收 NT$ '+fmt(net):'發票金額'));
       right.appendChild(amtBox);
       var invId=inv.id;
-      var editInvBtn=document.createElement('button');
-      editInvBtn.textContent='✎';editInvBtn.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:4px 6px;cursor:pointer;color:#888;';
-      editInvBtn.addEventListener('click',(function(id,data){return function(){upd({modal:'inv',editInvId:id,invForm:Object.assign({},data),addingSite:false,addingVendor:false});};})(invId,inv));
-      right.appendChild(editInvBtn);
-      var delInvBtn=document.createElement('button');
-      delInvBtn.textContent='✕';delInvBtn.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:4px 6px;cursor:pointer;color:#A32D2D;';
-      delInvBtn.addEventListener('click',(function(id){return function(){delInvoice(id);};})(invId));
-      right.appendChild(delInvBtn);
+      var editB=document.createElement('button');editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:4px 6px;cursor:pointer;color:#888;';
+      editB.addEventListener('click',(function(id,data){return function(){upd({modal:'inv',editInvId:id,invForm:Object.assign({},data),addingSite:false,addingVendor:false});};})(invId,inv));
+      var delB=document.createElement('button');delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:4px 6px;cursor:pointer;color:#A32D2D;';
+      delB.addEventListener('click',(function(id){return function(){delInvoice(id);};})(invId));
+      right.appendChild(editB);right.appendChild(delB);
       top.appendChild(left);top.appendChild(right);card.appendChild(top);
       var pr=div({style:{display:'flex',justifyContent:'space-between',fontSize:'12px',marginBottom:'4px'}});
       var ps=span({style:{color:accent}},'已收款 ');ps.appendChild(make('strong',{},'NT$ '+fmt(paid)));pr.appendChild(ps);
@@ -652,7 +636,7 @@ function render(){
       var bar=div({style:{height:'6px',background:'#f0f0f0',borderRadius:'3px',overflow:'hidden',marginBottom:'4px'}});
       bar.appendChild(div({style:{height:'100%',width:pct+'%',background:settled?accent:'#F0A500',borderRadius:'3px'}}));
       card.appendChild(bar);
-      card.appendChild(div({style:{fontSize:'10px',color:'#888',marginBottom:'10px'}},'已收 '+pct+'%'+(reserved>0?' · 差距 NT$ '+fmt(reserved):''));
+      card.appendChild(div({style:{fontSize:'10px',color:'#888',marginBottom:'10px'}},'已收 '+pct+'%'+(reserved>0?' · 差距 NT$ '+fmt(reserved):'')));
       if((inv.payments||[]).length){
         var pb=div({style:{background:'#f5f5f7',borderRadius:'8px',padding:'8px 12px',marginBottom:'8px'}});
         pb.appendChild(div({style:{fontSize:'11px',fontWeight:'600',color:'#888',marginBottom:'6px'}},'收款紀錄'));
@@ -664,8 +648,7 @@ function render(){
           prow.appendChild(span({style:{color:accent,fontWeight:'600'}},'+NT$ '+fmt(p.amount)));
           prow.appendChild(span({style:{color:'#888'}},p.method));
           prow.appendChild(span({style:{flex:'1',color:'#888',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},p.note||''));
-          var dBtn=document.createElement('button');
-          dBtn.textContent='✕';dBtn.style.cssText='background:none;border:none;cursor:pointer;color:#ccc;font-size:13px;padding:0 2px;';
+          var dBtn=document.createElement('button');dBtn.textContent='✕';dBtn.style.cssText='background:none;border:none;cursor:pointer;color:#ccc;font-size:13px;padding:0 2px;';
           dBtn.addEventListener('click',(function(r,p){return function(){delPayment(r,p);};})(rid,pid));
           prow.appendChild(dBtn);pb.appendChild(prow);
         });
@@ -682,11 +665,10 @@ function render(){
     });
   }
 
-  // ── 支出管理 ──
   if(view==='expenses'){
     var topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
     var pills=div({style:{display:'flex',gap:'6px'}});
-    ['全部'].concat(EXPENSE_CATS).forEach(function(f){pills.appendChild(pill(f,expFilter===f,accent,function(){upd({expFilter:f});}));});
+    ['全部'].concat(EXPENSE_CATS).forEach(function(f){pills.appendChild(pill(f,expFilter===f,accent,(function(ff){return function(){upd({expFilter:ff});};})(f)));});
     topRow.appendChild(pills);
     topRow.appendChild(mkBtn('+ 新增支出','#E24B4A','#fff',function(){upd({modal:'exp',editExpId:null,expForm:emptyExp(),addingSite:false,addingVendor:false});}));
     main.appendChild(topRow);
@@ -702,11 +684,9 @@ function render(){
     filteredExp.forEach(function(e){
       var eid=e.id;
       var badge=span({style:{display:'inline-block',padding:'2px 7px',borderRadius:'4px',fontSize:'11px',fontWeight:'500',background:e.category==='工人支出'?'#FAEEDA':'#E6F1FB',color:e.category==='工人支出'?'#854F0B':'#185FA5'}},e.category);
-      var editB=document.createElement('button');
-      editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
+      var editB=document.createElement('button');editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
       editB.addEventListener('click',(function(id,data){return function(){upd({modal:'exp',editExpId:id,expForm:Object.assign({},data),addingSite:false,addingVendor:false});};})(eid,e));
-      var delB=document.createElement('button');
-      delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
+      var delB=document.createElement('button');delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
       delB.addEventListener('click',(function(id){return function(){delExpItem(id);};})(eid));
       var opTd=td({});opTd.appendChild(editB);opTd.appendChild(delB);
       tbody.appendChild(tr(td({},e.date),td({},e.site),td({},e.vendor||'-'),td({},badge),td({style:{color:'#A32D2D',fontWeight:'600'}},'NT$ '+fmt(e.amount)),td({style:{maxWidth:'130px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},e.note||'-'),opTd));
@@ -714,7 +694,6 @@ function render(){
     tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
   }
 
-  // ── 帳務紀錄 ──
   if(view==='ledger'){
     var topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
     var left=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
@@ -722,8 +701,7 @@ function render(){
     si.addEventListener('input',function(e){upd({search:e.target.value});});
     left.appendChild(si);
     left.appendChild(mkSel(filterSite,[['全部','全部']].concat(sites.map(function(x){return[x,x];})),function(v){upd({filterSite:v});}));
-    topRow.appendChild(left);
-    topRow.appendChild(span({style:{fontSize:'12px',color:'#888'}},'共 '+ledger.length+' 筆'));
+    topRow.appendChild(left);topRow.appendChild(span({style:{fontSize:'12px',color:'#888'}},'共 '+ledger.length+' 筆'));
     main.appendChild(topRow);
     var card=div({class:'card'});var ow=div({style:{overflowX:'auto'}});
     var tbl=make('table',{class:'tbl'});
@@ -738,7 +716,6 @@ function render(){
     tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
   }
 
-  // ── 公司支出 ──
   if(view==='company_exp'){
     var topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px'}});
     topRow.appendChild(div({style:{fontWeight:'600',fontSize:'14px'}},'公司固定支出'));
@@ -750,8 +727,7 @@ function render(){
     mg.appendChild(metric('全部合計','NT$ '+fmt(totalCompanyExp),'#E24B4A'));
     main.appendChild(mg);
     FREQ_OPTS.filter(function(f){return byFreq[f].length;}).forEach(function(f){
-      var card=div({class:'card'});
-      var tot=byFreq[f].reduce(function(s,e){return s+(Number(e.amount)||0);},0);
+      var card=div({class:'card'}),tot=byFreq[f].reduce(function(s,e){return s+(Number(e.amount)||0);},0);
       var title=div({style:{fontWeight:'600',fontSize:'13px',marginBottom:'8px'}},f+'支出 ');
       title.appendChild(span({style:{color:'#A32D2D',fontWeight:'400'}},'NT$ '+fmt(tot)));
       card.appendChild(title);
@@ -760,11 +736,9 @@ function render(){
       var tbody=make('tbody');
       byFreq[f].forEach(function(e){
         var eid=e.id;
-        var editB=document.createElement('button');
-        editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
+        var editB=document.createElement('button');editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
         editB.addEventListener('click',(function(id,data){return function(){upd({modal:'compExp',editCompExpId:id,compExpForm:Object.assign({},data)});};})(eid,e));
-        var delB=document.createElement('button');
-        delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
+        var delB=document.createElement('button');delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
         delB.addEventListener('click',(function(id){return function(){delCompExp(id);};})(eid));
         var opTd=td({});opTd.appendChild(editB);opTd.appendChild(delB);
         tbody.appendChild(tr(td({style:{fontWeight:'500'}},e.item),td({},e.period||'-'),td({style:{color:'#A32D2D',fontWeight:'500'}},'NT$ '+fmt(e.amount)),td({},e.note||'-'),opTd));
@@ -774,7 +748,6 @@ function render(){
     if(!companyExp.length)main.appendChild(div({class:'card',style:{textAlign:'center',color:'#888',padding:'32px'}},'尚無支出紀錄'));
   }
 
-  // ── 分帳記錄 ──
   if(view==='split'){
     var topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
     var left=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
@@ -796,11 +769,9 @@ function render(){
       var tbody=make('tbody');
       filteredSplits.forEach(function(r){
         var sid=r.id;
-        var editB=document.createElement('button');
-        editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
+        var editB=document.createElement('button');editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
         editB.addEventListener('click',(function(id,data){return function(){upd({modal:'split',editSplitId:id,splitForm:Object.assign({},data)});};})(sid,r));
-        var delB=document.createElement('button');
-        delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
+        var delB=document.createElement('button');delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
         delB.addEventListener('click',(function(id){return function(){delSplit(id);};})(sid));
         var opTd=td({});opTd.appendChild(editB);opTd.appendChild(delB);
         tbody.appendChild(tr(td({},r.date),td({},r.site||'-'),td({style:{color:accent,fontWeight:'600'}},r.geo?'NT$ '+fmt(r.geo):'-'),td({style:{color:'#854F0B',fontWeight:'600'}},r.sister?'NT$ '+fmt(r.sister):'-'),td({style:{maxWidth:'150px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},r.note||'-'),opTd));
@@ -809,7 +780,6 @@ function render(){
     }
   }
 
-  // ── 損益報表 ──
   if(view==='profit'){
     var mg=div({class:'mg'});
     mg.appendChild(metric('已收款','NT$ '+fmt(totalIncome),accent));
@@ -822,7 +792,6 @@ function render(){
   }
 
   app.appendChild(main);
-
   if(modal==='inv')app.appendChild(renderInvModal());
   if(modal==='exp')app.appendChild(renderExpModal());
   if(modal==='pay'&&payModalId)app.appendChild(renderPayModal());

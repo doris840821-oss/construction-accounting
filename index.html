@@ -36,8 +36,41 @@ var EXPENSE_CATS=['工人支出','五金材料支出'];
 var FREQ_OPTS=['每月','每兩月','每季','每年','單次'];
 var PAY_METHODS=['現金收款','銀行匯款','支票'];
 
+var SUPA_URL='https://pncrnexpomkukkuanpvq.supabase.co';
+var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBuY3JuZXhwb21rdWtrdWFucHZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjEyOTYsImV4cCI6MjA5MzAzNzI5Nn0.TBTiHpN5gE_S-hEJG9AqD7Bq6EZjgtCh-4KjAYCYrmo';
+
+// localStorage 作為快取
 function store_get(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function store_set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+
+// Supabase 讀取
+async function supa_get(id){
+  try{
+    var res=await fetch(SUPA_URL+'/rest/v1/records?id=eq.'+encodeURIComponent(id)+'&select=data',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+    var rows=await res.json();
+    if(rows&&rows.length>0)return rows[0].data;
+    return null;
+  }catch(e){return null;}
+}
+
+// Supabase 寫入（upsert）
+async function supa_set(id,co,type,data){
+  try{
+    await fetch(SUPA_URL+'/rest/v1/records',{
+      method:'POST',
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({id:id,co:co,type:type,data:data,updated_at:new Date().toISOString()})
+    });
+  }catch(e){}
+}
+
+// 同時存 localStorage + Supabase
+function store_set_sync(k,v,co,type){
+  store_set(k,v);
+  supa_set(k,co,type,v);
+}
 
 function make(tag,props){
   var kids=Array.prototype.slice.call(arguments,2);
@@ -130,7 +163,11 @@ var ST={
   invForm:{},expForm:{},compExpForm:{},payEntry:{},splitForm:{}
 };
 function upd(patch){Object.assign(ST,patch);render();}
-function saveK(k,d){store_set(mk(ST.co,k),d);}
+function saveK(k,d){
+  var fullKey=mk(ST.co,k);
+  store_set(fullKey,d);
+  supa_set(fullKey,ST.co,k,d);
+}
 function setInvForm(k,v){ST.invForm[k]=v;}
 function setExpForm(k,v){ST.expForm[k]=v;}
 function setPayForm(k,v){ST.payEntry[k]=v;}
@@ -199,6 +236,7 @@ function autoAddMonthlyExpenses(co){
 function loadAll(co){
   initDefaultData(co);
   autoAddMonthlyExpenses(co);
+  // 先用 localStorage 快速顯示
   var p={co:co,view:'dashboard',modal:null,checkFilter:'全部',expFilter:'全部',filterSite:'全部',splitSite:'全部',search:''};
   [['invoices','invoices',[]],['expenses','expItems',[]],['company_exp','companyExp',[]],
    ['splits','splits',[]],['sites','sites',DEF_SITES],['vendors','vendors',DEF_VENDORS]
@@ -207,6 +245,28 @@ function loadAll(co){
     p[x[1]]=v!==null?v:x[2].slice();
   });
   upd(p);
+  // 背景從 Supabase 同步最新資料
+  syncFromSupabase(co);
+}
+
+async function syncFromSupabase(co){
+  var keys=[['invoices','invoices'],['expenses','expItems'],['company_exp','companyExp'],['splits','splits'],['sites','sites'],['vendors','vendors']];
+  var patch={};
+  var hasUpdate=false;
+  for(var i=0;i<keys.length;i++){
+    var key=keys[i][0],field=keys[i][1];
+    var id=mk(co,key);
+    var remote=await supa_get(id);
+    if(remote!==null){
+      store_set(id,remote);
+      patch[field]=remote;
+      hasUpdate=true;
+    }
+  }
+  if(hasUpdate&&ST.co===co){
+    Object.assign(ST,patch);
+    render();
+  }
 }
 
 var getNet=function(r){return Math.max(0,(Number(r.total_amount)||0)-(Number(r.discount)||0));};

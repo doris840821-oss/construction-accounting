@@ -146,37 +146,105 @@ function emptyCompExp(){return{item:'',period:'',amount:'',freq:'每月',note:''
 
 // 自動新增每月固定公司支出
 function autoAddMonthlyExpenses(co){
-  if(co!=='竑順')return; // 只有竑順需要
+  if(co!=='竑順')return;
   const now=new Date();
-  const day=now.getDate();
-  if(day!==1)return; // 只在每月1號執行
   const ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const lastKey=mk(co,'auto_month');
-  const last=store_get(lastKey);
-  if(last===ym)return; // 本月已新增過，不重複
+  const existing=store_get(mk(co,'company_exp'))||[];
   const fixed=[
     {item:'董事長薪水',amount:'50000'},
     {item:'公司租金',amount:'10000'},
     {item:'會計費用',amount:'40000'},
   ];
-  const existing=store_get(mk(co,'company_exp'))||[];
-  const toAdd=fixed.map(f=>({
-    id:Date.now()+Math.random(),
-    item:f.item,period:ym,amount:f.amount,freq:'每月',note:`${ym} 自動新增`
-  }));
+  // 檢查當月是否已有這三筆
+  const alreadyAdded=fixed.every(f=>existing.some(e=>e.item===f.item&&e.period===ym));
+  if(alreadyAdded)return;
+  // 新增當月還沒有的項目
+  const toAdd=fixed
+    .filter(f=>!existing.some(e=>e.item===f.item&&e.period===ym))
+    .map(f=>({id:Date.now()+Math.random(),item:f.item,period:ym,amount:f.amount,freq:'每月',note:`${ym} 自動新增`}));
   const updated=[...toAdd,...existing];
   store_set(mk(co,'company_exp'),updated);
-  store_set(lastKey,ym);
 }function loadAll(co){
   const p={co,view:'dashboard',modal:null,checkFilter:'全部',expFilter:'全部',filterSite:'全部',splitSite:'全部',search:''};
   [['invoices','invoices',[]],['expenses','expItems',[]],['company_exp','companyExp',[]],
    ['splits','splits',[]],['sites','sites',DEF_SITES],['vendors','vendors',DEF_VENDORS]
   ].forEach(([k,f,d])=>{const v=store_get(mk(co,k));p[f]=v!==null?v:[...d];});
-  autoAddMonthlyExpenses(co); // 自動新增每月固定支出
-  // 重新讀取（因為 auto 可能剛寫入）
+  autoAddMonthlyExpenses(co);
   const ce=store_get(mk(co,'company_exp'));
   if(ce)p.companyExp=ce;
+  // 初始化預設資料（只在第一次執行）
+  initDefaultData(co,p);
   upd(p);
+}
+
+function initDefaultData(co, p){
+  const initKey=mk(co,'init_done');
+  if(store_get(initKey))return; // 已初始化過，跳過
+
+  if(co==='竑順'){
+    // 公司支出 2026-01 ~ 2026-05
+    const months=['2026-01','2026-02','2026-03','2026-04','2026-05'];
+    const fixed=[
+      {item:'董事長薪水',amount:'50000'},
+      {item:'公司租金',amount:'10000'},
+      {item:'會計費用',amount:'40000'},
+    ];
+    const companyExp=[];
+    months.forEach(ym=>{
+      fixed.forEach(f=>{
+        companyExp.push({id:Date.now()+Math.random(),item:f.item,period:ym,amount:f.amount,freq:'每月',note:''});
+      });
+    });
+    store_set(mk(co,'company_exp'),companyExp);
+    p.companyExp=companyExp;
+
+    // 竑順支出：中和莒光路 工人支出 500,000
+    const expItems=[
+      {id:Date.now()+Math.random(),date:'2026-05-01',site:'中和莒光路',vendor:'吉諦',category:'工人支出',amount:'500000',note:''}
+    ];
+    store_set(mk(co,'expenses'),expItems);
+    p.expItems=expItems;
+
+    // 竑順工地清單
+    const sites=['中和莒光路','板橋遠雄'];
+    store_set(mk(co,'sites'),sites);
+    p.sites=sites;
+
+    // 竑順廠商清單
+    const vendors=['吉諦','哲在'];
+    store_set(mk(co,'vendors'),vendors);
+    p.vendors=vendors;
+  }
+
+  if(co==='吉諦'){
+    // 吉諦支出（預支 → 工人支出）
+    const expItems=[
+      {id:Date.now()+Math.random(),date:'2025-11-27',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'700000',note:''},
+      {id:Date.now()+Math.random(),date:'2025-12-15',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'700000',note:''},
+      {id:Date.now()+Math.random(),date:'2025-12-31',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'700000',note:''},
+      {id:Date.now()+Math.random(),date:'2026-01-02',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'1110670',note:''},
+      {id:Date.now()+Math.random(),date:'2026-01-14',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'500000',note:''},
+      {id:Date.now()+Math.random(),date:'2026-01-30',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'800000',note:''},
+      {id:Date.now()+Math.random(),date:'2026-02-11',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'1000000',note:''},
+      {id:Date.now()+Math.random(),date:'2026-03-15',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'1000000',note:''},
+      {id:Date.now()+Math.random(),date:'2026-04-01',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'1633680',note:''},
+      {id:Date.now()+Math.random(),date:'2026-04-30',site:'板橋遠雄',vendor:'吉諦借支',category:'工人支出',amount:'300000',note:''},
+    ];
+    store_set(mk(co,'expenses'),expItems);
+    p.expItems=expItems;
+
+    // 吉諦工地清單
+    const sites=['板橋遠雄'];
+    store_set(mk(co,'sites'),sites);
+    p.sites=sites;
+
+    // 吉諦廠商清單
+    const vendors=['吉諦借支','哲在'];
+    store_set(mk(co,'vendors'),vendors);
+    p.vendors=vendors;
+  }
+
+  store_set(initKey,true); // 標記已初始化
 }
 
 const getNet=r=>Math.max(0,(Number(r.total_amount)||0)-(Number(r.discount)||0));

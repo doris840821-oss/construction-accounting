@@ -387,9 +387,8 @@ function vendorSelectUI(val,onChangeFn){
   return wrap;
 }
 
-function modalWrap(inner,onClose){
+function modalWrap(inner){
   var ov=div({class:'ov'});
-  ov.addEventListener('click',function(e){if(e.target===ov)onClose();});
   ov.appendChild(inner);
   return ov;
 }
@@ -413,7 +412,7 @@ function renderInvModal(){
   row.appendChild(ghostBtn('取消',function(){upd({modal:null});}));
   row.appendChild(mkBtn('儲存',accent,'#fff',saveInvoice));
   box.appendChild(row);
-  return modalWrap(box,function(){upd({modal:null});});
+  return modalWrap(box);
 }
 function renderExpModal(){
   var f=ST.expForm;
@@ -431,7 +430,7 @@ function renderExpModal(){
   row.appendChild(ghostBtn('取消',function(){upd({modal:null});}));
   row.appendChild(mkBtn('儲存','#E24B4A','#fff',saveExpItem));
   box.appendChild(row);
-  return modalWrap(box,function(){upd({modal:null});});
+  return modalWrap(box);
 }
 function renderPayModal(){
   var accent=CO_COLOR[ST.co];
@@ -453,7 +452,7 @@ function renderPayModal(){
   row.appendChild(ghostBtn('取消',function(){upd({modal:null,payModalId:null});}));
   row.appendChild(mkBtn('確認收款',accent,'#fff',addPayment));
   box.appendChild(row);
-  return modalWrap(box,function(){upd({modal:null,payModalId:null});});
+  return modalWrap(box);
 }
 function renderCompExpModal(){
   var accent=CO_COLOR[ST.co];
@@ -471,7 +470,7 @@ function renderCompExpModal(){
   row.appendChild(ghostBtn('取消',function(){upd({modal:null});}));
   row.appendChild(mkBtn('儲存',accent,'#fff',saveCompExp));
   box.appendChild(row);
-  return modalWrap(box,function(){upd({modal:null});});
+  return modalWrap(box);
 }
 function renderSplitModal(){
   var accent=CO_COLOR[ST.co];
@@ -489,7 +488,7 @@ function renderSplitModal(){
   row.appendChild(ghostBtn('取消',function(){upd({modal:null});}));
   row.appendChild(mkBtn('儲存',accent,'#fff',saveSplit));
   box.appendChild(row);
-  return modalWrap(box,function(){upd({modal:null});});
+  return modalWrap(box);
 }
 
 function exportCSV(){

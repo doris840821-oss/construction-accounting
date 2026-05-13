@@ -573,6 +573,7 @@ function render(){
 
   var navItems=[['dashboard','總覽'],['checks','收款管理'],['expenses','支出管理'],['ledger','帳務紀錄']];
   if(co==='竑順')navItems.push(['company_exp','公司支出']);
+  if(co==='竑順')navItems.push(['vendors_db','廠商資料']);
   if(co==='吉諦')navItems.push(['split','分帳記錄']);
   navItems.push(['profit','損益報表']);
 
@@ -839,7 +840,101 @@ function render(){
     }
   }
 
-  if(view==='profit'){
+  if(view==='vendors_db'){
+    var VENDORS_DB=[
+      {name:'三鐽有限公司',bank:'103',branch:'0064',account:'0064306003931',tax:''},
+      {name:'順益企業有限公司',bank:'012',branch:'',account:'709102003496',tax:''},
+      {name:'巨金機電有限公司',bank:'005',branch:'0935',account:'093001013228',tax:''},
+      {name:'益昌氣體有限公司',bank:'007',branch:'',account:'24510016832',tax:''},
+      {name:'中國銲條機械股份有限公司',bank:'803',branch:'0814',account:'081100003171',tax:''},
+      {name:'騰翔氣體有限公司',bank:'008',branch:'5221',account:'522100123662',tax:''},
+      {name:'北邑運輸有限公司',bank:'008',branch:'1991',account:'199100016320',tax:''},
+      {name:'中原氣體有限公司',bank:'006',branch:'',account:'0210898002629',tax:''},
+      {name:'裕升起重行',bank:'776',branch:'',account:'04110706609',tax:''},
+      {name:'興偉五金有限公司',bank:'007',branch:'1314',account:'13110441006',tax:''},
+      {name:'宏達全球股份有限公司',bank:'007',branch:'2034',account:'20310037672',tax:''},
+      {name:'詠達鋼業',bank:'011',branch:'',account:'52102000034019',tax:''},
+      {name:'全穩實業股份有限公司',bank:'011',branch:'',account:'52102000036998',tax:''},
+      {name:'皓鑫鋼業有限公司',bank:'009',branch:'9356',account:'93560101223100',tax:''},
+      {name:'日立昇起重工程行',bank:'807',branch:'',account:'13801800035376',tax:''},
+      {name:'各保企業有限公司',bank:'013',branch:'0213',account:'021035006084',tax:''},
+      {name:'揚億機械五金',bank:'147',branch:'',account:'3720005320',tax:''},
+      {name:'梧鳳焊材工業股份有限公司',bank:'050',branch:'608',account:'56012130622',tax:'22582888'},
+    ];
+    var vdbSearch=ST.vdbSearch||'';
+    var filtered=VENDORS_DB.filter(function(v){
+      if(!vdbSearch)return true;
+      return (v.name+v.bank+v.branch+v.account+v.tax).indexOf(vdbSearch)>=0;
+    });
+    var topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
+    topRow.appendChild(div({style:{fontWeight:'600',fontSize:'14px'}},'廠商轉帳資料'));
+    var si=make('input',{type:'text',placeholder:'搜尋廠商名稱、帳號...',style:{width:'220px'},value:vdbSearch});
+    si.addEventListener('input',function(e){ST.vdbSearch=e.target.value;render();});
+    topRow.appendChild(si);
+    main.appendChild(topRow);
+    main.appendChild(div({style:{fontSize:'11px',color:'#888',marginBottom:'8px'}},'點擊任何欄位可複製內容'));
+    var card=div({class:'card'});
+    var ow=div({style:{overflowX:'auto'}});
+    var tbl=make('table',{class:'tbl'});
+    tbl.appendChild(make('thead',{},tr(
+      th({style:{minWidth:'160px'}},'廠商名稱'),
+      th({style:{minWidth:'60px'}},'所屬銀行'),
+      th({style:{minWidth:'60px'}},'分行'),
+      th({style:{minWidth:'160px'}},'銀行帳戶'),
+      th({style:{minWidth:'90px'}},'統編')
+    )));
+    var tbody=make('tbody');
+    if(!filtered.length)tbody.appendChild(tr(make('td',{colspan:5,style:{textAlign:'center',color:'#888',padding:'28px'}},'查無資料')));
+
+    function copyCell(text){
+      if(!text)return;
+      navigator.clipboard.writeText(text).then(function(){
+        // 顯示複製成功提示
+        var toast=div({style:{position:'fixed',bottom:'20px',left:'50%',transform:'translateX(-50%)',background:'#1a1a1a',color:'#fff',padding:'8px 18px',borderRadius:'8px',fontSize:'13px',zIndex:999,opacity:'1',transition:'opacity 0.3s'}});
+        toast.textContent='已複製：'+text;
+        document.body.appendChild(toast);
+        setTimeout(function(){toast.style.opacity='0';setTimeout(function(){document.body.removeChild(toast);},300);},1500);
+      }).catch(function(){
+        // 降版複製方式
+        var ta=document.createElement('textarea');
+        ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+        document.body.appendChild(ta);ta.select();document.execCommand('copy');
+        document.body.removeChild(ta);
+        var toast=div({style:{position:'fixed',bottom:'20px',left:'50%',transform:'translateX(-50%)',background:'#1a1a1a',color:'#fff',padding:'8px 18px',borderRadius:'8px',fontSize:'13px',zIndex:999}});
+        toast.textContent='已複製：'+text;
+        document.body.appendChild(toast);
+        setTimeout(function(){document.body.removeChild(toast);},1500);
+      });
+    }
+
+    function makeCell(text,isAccount){
+      var c=td({style:{cursor:text?'pointer':'default',userSelect:'text'}},text||'-');
+      if(text){
+        if(isAccount){
+          c.style.fontFamily='monospace';
+          c.style.fontSize='13px';
+          c.style.fontWeight='600';
+          c.style.color='#185FA5';
+        }
+        c.title='點擊複製';
+        c.addEventListener('click',function(){copyCell(text);});
+        c.addEventListener('mouseenter',function(){c.style.background='#EEF6FF';});
+        c.addEventListener('mouseleave',function(){c.style.background='';});
+      }
+      return c;
+    }
+
+    filtered.forEach(function(v){
+      tbody.appendChild(tr(
+        makeCell(v.name,false),
+        makeCell(v.bank,false),
+        makeCell(v.branch,false),
+        makeCell(v.account,true),
+        makeCell(v.tax,false)
+      ));
+    });
+    tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
+  }
     var mg=div({class:'mg'});
     mg.appendChild(metric('已收款','NT$ '+fmt(totalIncome),accent));
     mg.appendChild(metric('公司固定支出','NT$ '+fmt(totalCompanyExp),'#E24B4A'));

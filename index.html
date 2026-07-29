@@ -221,14 +221,22 @@ function initDefaultData(co){
 function autoAddMonthlyExpenses(co){
   if(co!=='竑順')return;
   var now=new Date();
-  var ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   var existing=store_get(mk(co,'company_exp'))||[];
   var fixed=[{item:'董事長薪水',amount:'50000'},{item:'公司租金',amount:'10000'},{item:'會計費用',amount:'40000'}];
-  var toAdd=fixed.filter(function(f){
-    return !existing.some(function(e){return e.item===f.item&&e.period===ym;});
-  }).map(function(f){
-    return {id:Date.now()+Math.random(),item:f.item,period:ym,amount:f.amount,freq:'每月',note:ym+' 自動新增'};
-  });
+  // 從 2026-01 補到當月
+  var startYear=2026,startMonth=1;
+  var endYear=now.getFullYear(),endMonth=now.getMonth()+1;
+  var toAdd=[];
+  for(var y=startYear,m=startMonth;;){
+    var ym=y+'-'+String(m).padStart(2,'0');
+    fixed.forEach(function(f){
+      if(!existing.some(function(e){return e.item===f.item&&e.period===ym;})){
+        toAdd.push({id:Date.now()+Math.random(),item:f.item,period:ym,amount:f.amount,freq:'每月',note:ym+' 自動新增'});
+      }
+    });
+    if(y===endYear&&m===endMonth)break;
+    m++;if(m>12){m=1;y++;}
+  }
   if(!toAdd.length)return;
   store_set(mk(co,'company_exp'),toAdd.concat(existing));
 }
@@ -581,7 +589,7 @@ function render(){
   var totalCompanyExp=companyExp.reduce(function(s,e){return s+(Number(e.amount)||0);},0);
   var grandProfit=totalIncome-totalExpense;
   var stats=siteStats();
-  var filteredChecks=invoices.filter(function(r){if(checkFilter==='未收完')return getReserved(r)>0;if(checkFilter==='已結清')return isSettled(r);return true;});
+  var filteredChecks=invoices.filter(function(r){if(checkFilter==='未收完')return getReserved(r)>0;if(checkFilter==='已結清')return isSettled(r);return true;}).sort(function(a,b){var s=a.site.localeCompare(b.site,'zh-TW');if(s!==0)return s;return (b.inv_date||b.date||'').localeCompare(a.inv_date||a.date||'');});
   var filteredExp=expItems.filter(function(r){if(expFilter!=='全部'&&r.category!==expFilter)return false;if(filterSite!=='全部'&&r.site!==filterSite)return false;return true;});
   var filteredSplits=splits.filter(function(r){return splitSite==='全部'||r.site===splitSite;});
   var ledger=invoices.map(function(inv){return{id:'i'+inv.id,date:inv.date,site:inv.site,vendor:inv.vendor,type:'開出發票',io:'收入',amount:Number(inv.total_amount)||0,paid:getPaid(inv),reserved:getReserved(inv),inv_no:inv.inv_no,note:inv.note};})
@@ -690,9 +698,10 @@ function render(){
       var card=div({class:'card',style:{borderLeft:'3px solid '+(settled?accent:'#BA7517')}});
       var top=div({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'6px'}});
       var left=div({});
-      left.appendChild(span({style:{fontWeight:'700',fontSize:'14px'}},inv.vendor||inv.site));
-      if(inv.inv_no)left.appendChild(span({style:{fontSize:'11px',color:'#888',marginLeft:'8px'}},'發票 '+inv.inv_no));
-      left.appendChild(div({style:{fontSize:'11px',color:'#888',marginTop:'2px'}},inv.site+' · '+inv.date));
+      left.appendChild(div({style:{display:'inline-block',background:'#E8F5E9',color:accent,fontWeight:'700',fontSize:'11px',padding:'2px 8px',borderRadius:'4px',marginBottom:'4px'}},inv.site));
+      left.appendChild(div({style:{fontWeight:'700',fontSize:'14px'}},inv.vendor||inv.site));
+      if(inv.inv_no)left.appendChild(span({style:{fontSize:'11px',color:'#888',marginLeft:'0px'}},'發票 '+inv.inv_no));
+      left.appendChild(div({style:{fontSize:'11px',color:'#888',marginTop:'2px'}},inv.date));
       var right=div({style:{display:'flex',alignItems:'center',gap:'6px'}});
       var amtBox=div({style:{textAlign:'right'}});
       amtBox.appendChild(div({style:{fontWeight:'700',fontSize:'15px'}},'NT$ '+fmt(Number(inv.total_amount)||0)));
@@ -776,10 +785,23 @@ function render(){
     var topRow=div({style:{display:'flex',justifyContent:'space-between',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
     var left=div({style:{display:'flex',gap:'8px',alignItems:'center'}});
     var si=make('input',{type:'text',placeholder:'搜尋工地/廠商...',style:{width:'160px'},value:search});
-    si.addEventListener('input',function(e){upd({search:e.target.value});});
+    var _composing=false;
+    si.addEventListener('compositionstart',function(){_composing=true;});
+    si.addEventListener('compositionend',function(e){_composing=false;upd({search:e.target.value});});
+    si.addEventListener('input',function(e){if(!_composing)upd({search:e.target.value});});
     left.appendChild(si);
     left.appendChild(mkSel(filterSite,[['全部','全部']].concat(sites.map(function(x){return[x,x];})),function(v){upd({filterSite:v});}));
-    topRow.appendChild(left);topRow.appendChild(span({style:{fontSize:'12px',color:'#888'}},'共 '+ledger.length+' 筆'));
+    var ledgerTotal=ledger.reduce(function(s,r){return s+(r.io==='收入'?r.amount:-r.amount);},0);
+    var ledgerIncome=ledger.filter(function(r){return r.io==='收入';}).reduce(function(s,r){return s+r.amount;},0);
+    var ledgerExpense=ledger.filter(function(r){return r.io==='支出';}).reduce(function(s,r){return s+r.amount;},0);
+    var summaryBox=div({style:{display:'flex',gap:'16px',alignItems:'center',flexWrap:'wrap'}});
+    summaryBox.appendChild(span({style:{fontSize:'12px',color:'#888'}},'共 '+ledger.length+' 筆'));
+    if(search||filterSite!=='全部'){
+      summaryBox.appendChild(span({style:{fontSize:'12px',color:accent,fontWeight:'600'}},'收入 NT$ '+fmt(ledgerIncome)));
+      summaryBox.appendChild(span({style:{fontSize:'12px',color:'#A32D2D',fontWeight:'600'}},'支出 NT$ '+fmt(ledgerExpense)));
+      summaryBox.appendChild(span({style:{fontSize:'12px',fontWeight:'700',color:ledgerTotal>=0?'#185FA5':'#A32D2D'}},'合計 NT$ '+fmt(ledgerTotal)));
+    }
+    topRow.appendChild(left);topRow.appendChild(summaryBox);
     main.appendChild(topRow);
     var card=div({class:'card'});var ow=div({style:{overflowX:'auto'}});
     var tbl=make('table',{class:'tbl'});
@@ -787,7 +809,9 @@ function render(){
     var tbody=make('tbody');
     if(!ledger.length)tbody.appendChild(tr(make('td',{colspan:9,style:{textAlign:'center',color:'#888',padding:'28px'}},'尚無紀錄')));
     ledger.forEach(function(r){
-      var typeBadge=span({style:{display:'inline-block',padding:'2px 7px',borderRadius:'4px',fontSize:'11px',fontWeight:'500',background:r.io==='收入'?'#E1F5EE':'#F3F4F6',color:r.io==='收入'?accent:'#555'}},r.type);
+      var typeBadge=span({style:{display:'inline-block',padding:'2px 7px',borderRadius:'4px',fontSize:'11px',fontWeight:'500',
+        background:r.io==='收入'?'#E1F5EE':r.type==='工人支出'?'#FAEEDA':'#EDE7F6',
+        color:r.io==='收入'?accent:r.type==='工人支出'?'#854F0B':'#5E35B1'}},r.type);
       var ioBadge=span({style:{display:'inline-block',padding:'2px 7px',borderRadius:'4px',fontSize:'11px',fontWeight:'500',background:r.io==='收入'?'#EAF3DE':'#FCEBEB',color:r.io==='收入'?'#3B6D11':'#A32D2D'}},r.io);
       tbody.appendChild(tr(td({},r.date),td({},r.site),td({},r.vendor||'-'),td({},typeBadge),td({},ioBadge),td({style:{fontWeight:'600'}},'NT$ '+fmt(r.amount)),td({style:{color:r.io==='收入'?accent:'#A32D2D',fontWeight:'500'}},'NT$ '+fmt(r.paid)),td({style:{color:r.reserved>0?'#854F0B':'#3B6D11'}},r.reserved>0?'NT$ '+fmt(r.reserved):'✓'),td({style:{maxWidth:'120px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},r.note||'-')));
     });
@@ -991,6 +1015,84 @@ function render(){
       tbody.appendChild(tr(makeCell(v.name,false),makeCell(v.bank,false),makeCell(v.branch,false),makeCell(v.account,true),makeCell(v.tax,false),opTd));
     });
     tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
+  }
+
+  if(view==='profit'){
+    var mg2=div({class:'mg'});
+    mg2.appendChild(metric('已收款','NT$ '+fmt(totalIncome),accent));
+    mg2.appendChild(metric('工地支出','NT$ '+fmt(totalExpense),'#E24B4A'));
+    mg2.appendChild(metric('工地損益','NT$ '+fmt(grandProfit),grandProfit>=0?'#185FA5':'#A32D2D'));
+    if(co==='竑順'){
+      mg2.appendChild(metric('公司固定支出','NT$ '+fmt(totalCompanyExp),'#6B5EA8'));
+      mg2.appendChild(metric('總損益','NT$ '+fmt(grandProfit-totalCompanyExp),(grandProfit-totalCompanyExp)>=0?'#185FA5':'#A32D2D'));
+      mg2.appendChild(metric('每人可分','NT$ '+fmt(Math.round((grandProfit-totalCompanyExp)/2)),'#BA7517'));
+    }
+    main.appendChild(mg2);
+    var card=div({class:'card'});
+    card.appendChild(div({style:{fontWeight:'600',fontSize:'14px',marginBottom:'12px'}},'各工地損益明細'));
+    var ow=div({style:{overflowX:'auto'}});
+    var tbl=make('table',{class:'tbl'});
+    tbl.appendChild(make('thead',{},tr(
+      th({},'工地'),
+      th({style:{textAlign:'right',color:accent}},'已收款'),
+      th({style:{textAlign:'right',color:'#854F0B'}},'保留款'),
+      th({style:{textAlign:'right',color:'#A32D2D'}},'工人支出'),
+      th({style:{textAlign:'right',color:'#A32D2D'}},'五金材料'),
+      th({style:{textAlign:'right'}},'開出發票'),
+      th({style:{textAlign:'right',fontWeight:'700'}},'損益')
+    )));
+    var tbody=make('tbody');
+    var entries2=Object.keys(stats).map(function(k){return[k,stats[k]];});
+    if(!entries2.length)tbody.appendChild(tr(make('td',{colspan:7,style:{textAlign:'center',color:'#888',padding:'24px'}},'尚無資料')));
+    entries2.forEach(function(entry){
+      var site=entry[0],v=entry[1],exp=v.worker+v.material,p=v.received-exp;
+      tbody.appendChild(tr(
+        td({style:{fontWeight:'700'}},site),
+        td({style:{textAlign:'right',color:accent,fontWeight:'500'}},'NT$ '+fmt(v.received)),
+        td({style:{textAlign:'right',color:'#854F0B'}},v.reserved>0?'NT$ '+fmt(v.reserved):'-'),
+        td({style:{textAlign:'right',color:'#A32D2D'}},v.worker>0?'NT$ '+fmt(v.worker):'-'),
+        td({style:{textAlign:'right',color:'#A32D2D'}},v.material>0?'NT$ '+fmt(v.material):'-'),
+        td({style:{textAlign:'right'}},v.invoice>0?'NT$ '+fmt(v.invoice):'-'),
+        td({style:{textAlign:'right',fontWeight:'700',color:p>=0?'#185FA5':'#A32D2D',background:p>=0?'#F0F7FF':'#FFF5F5'}},'NT$ '+fmt(p))
+      ));
+    });
+    if(entries2.length){
+      var ti2=entries2.reduce(function(s,e){return s+e[1].received;},0);
+      var tw2=entries2.reduce(function(s,e){return s+e[1].worker;},0);
+      var tm2=entries2.reduce(function(s,e){return s+e[1].material;},0);
+      var tiv2=entries2.reduce(function(s,e){return s+e[1].invoice;},0);
+      var tr2b=entries2.reduce(function(s,e){return s+e[1].reserved;},0);
+      var gp2=ti2-(tw2+tm2);
+      tbody.appendChild(tr(
+        td({style:{fontWeight:'700',borderTop:'2px solid #e0e0e0'}},'總計'),
+        td({style:{textAlign:'right',fontWeight:'700',color:accent,borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(ti2)),
+        td({style:{textAlign:'right',fontWeight:'700',color:'#854F0B',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(tr2b)),
+        td({style:{textAlign:'right',fontWeight:'700',color:'#A32D2D',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(tw2)),
+        td({style:{textAlign:'right',fontWeight:'700',color:'#A32D2D',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(tm2)),
+        td({style:{textAlign:'right',fontWeight:'700',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(tiv2)),
+        td({style:{textAlign:'right',fontWeight:'700',color:gp2>=0?'#185FA5':'#A32D2D',background:gp2>=0?'#E3F2FD':'#FFEBEE',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(gp2))
+      ));
+    }
+    tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
+    if(co==='竑順'&&companyExp.length){
+      var card2=div({class:'card'});
+      card2.appendChild(div({style:{fontWeight:'600',fontSize:'14px',marginBottom:'12px'}},'公司固定支出明細'));
+      var byFreq2={};FREQ_OPTS.forEach(function(f){byFreq2[f]=[];});
+      companyExp.forEach(function(e){if(byFreq2[e.freq])byFreq2[e.freq].push(e);});
+      var tbl2=make('table',{class:'tbl'});
+      tbl2.appendChild(make('thead',{},tr(th({},'頻率'),th({},'項目'),th({},'區間'),th({style:{textAlign:'right'}},'金額'))));
+      var tbody2=make('tbody');
+      FREQ_OPTS.filter(function(f){return byFreq2[f].length;}).forEach(function(f){
+        byFreq2[f].forEach(function(e){
+          tbody2.appendChild(tr(td({style:{color:'#888',fontSize:'11px'}},f),td({},e.item),td({},e.period||'-'),td({style:{textAlign:'right',color:'#A32D2D'}},'NT$ '+fmt(e.amount))));
+        });
+      });
+      tbody2.appendChild(tr(
+        td({colspan:3,style:{fontWeight:'700',borderTop:'2px solid #e0e0e0'}},'合計'),
+        td({style:{textAlign:'right',fontWeight:'700',color:'#A32D2D',borderTop:'2px solid #e0e0e0'}},'NT$ '+fmt(totalCompanyExp))
+      ));
+      tbl2.appendChild(tbody2);card2.appendChild(tbl2);main.appendChild(card2);
+    }
   }
 
   app.appendChild(main);

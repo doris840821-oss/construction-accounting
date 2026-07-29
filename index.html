@@ -233,6 +233,18 @@ function autoAddMonthlyExpenses(co){
   store_set(mk(co,'company_exp'),toAdd.concat(existing));
 }
 
+var AUTO_SYNC_TIMER=null;
+
+// 每 23 小時 ping 一次 Supabase，防止免費方案自動暫停
+async function keepSupabaseAlive(){
+  try{
+    await fetch(SUPA_URL+'/rest/v1/records?limit=1',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+  }catch(e){}
+}
+keepSupabaseAlive();
+setInterval(keepSupabaseAlive, 23*60*60*1000);
 function loadAll(co){
   initDefaultData(co);
   autoAddMonthlyExpenses(co);
@@ -245,8 +257,14 @@ function loadAll(co){
     p[x[1]]=v!==null?v:x[2].slice();
   });
   upd(p);
-  // 背景從 Supabase 同步最新資料
+  // 從 Supabase 同步最新資料（優先）
   syncFromSupabase(co);
+  // 清除舊的自動同步計時器
+  if(AUTO_SYNC_TIMER)clearInterval(AUTO_SYNC_TIMER);
+  // 每 30 秒自動從 Supabase 同步一次
+  AUTO_SYNC_TIMER=setInterval(function(){
+    if(ST.co===co)syncFromSupabase(co);
+  },30000);
 }
 
 async function syncFromSupabase(co){
@@ -262,12 +280,6 @@ async function syncFromSupabase(co){
       patch[field]=remote;
       hasUpdate=true;
     }
-  }
-  // 同步廠商轉帳資料（共用，不綁定公司）
-  var vdbRemote=await supa_get('hs26_shared_vendors_db');
-  if(vdbRemote!==null){
-    store_set('hs26_shared_vendors_db',vdbRemote);
-    hasUpdate=true;
   }
   if(hasUpdate&&ST.co===co){
     Object.assign(ST,patch);
@@ -847,99 +859,38 @@ function render(){
   }
 
   if(view==='vendors_db'){
-    var VDB_DEFAULT=[
-      {id:'vdb_01',name:'三鐽有限公司',bank:'103',branch:'0064',account:'0064306003931',tax:''},
-      {id:'vdb_02',name:'順益企業有限公司',bank:'012',branch:'',account:'709102003496',tax:''},
-      {id:'vdb_03',name:'巨金機電有限公司',bank:'005',branch:'0935',account:'093001013228',tax:''},
-      {id:'vdb_04',name:'益昌氣體有限公司',bank:'007',branch:'',account:'24510016832',tax:''},
-      {id:'vdb_05',name:'中國銲條機械股份有限公司',bank:'803',branch:'0814',account:'081100003171',tax:''},
-      {id:'vdb_06',name:'騰翔氣體有限公司',bank:'008',branch:'5221',account:'522100123662',tax:''},
-      {id:'vdb_07',name:'北邑運輸有限公司',bank:'008',branch:'1991',account:'199100016320',tax:''},
-      {id:'vdb_08',name:'中原氣體有限公司',bank:'006',branch:'',account:'0210898002629',tax:''},
-      {id:'vdb_09',name:'裕升起重行',bank:'776',branch:'',account:'04110706609',tax:''},
-      {id:'vdb_10',name:'興偉五金有限公司',bank:'007',branch:'1314',account:'13110441006',tax:''},
-      {id:'vdb_11',name:'宏達全球股份有限公司',bank:'007',branch:'2034',account:'20310037672',tax:''},
-      {id:'vdb_12',name:'詠達鋼業',bank:'011',branch:'',account:'52102000034019',tax:''},
-      {id:'vdb_13',name:'全穩實業股份有限公司',bank:'011',branch:'',account:'52102000036998',tax:''},
-      {id:'vdb_14',name:'皓鑫鋼業有限公司',bank:'009',branch:'9356',account:'93560101223100',tax:''},
-      {id:'vdb_15',name:'日立昇起重工程行',bank:'807',branch:'',account:'13801800035376',tax:''},
-      {id:'vdb_16',name:'各保企業有限公司',bank:'013',branch:'0213',account:'021035006084',tax:''},
-      {id:'vdb_17',name:'揚億機械五金',bank:'147',branch:'',account:'3720005320',tax:''},
-      {id:'vdb_18',name:'梧鳳焊材工業股份有限公司',bank:'050',branch:'608',account:'56012130622',tax:'22582888'},
+    var VENDORS_DB=[
+      {name:'三鐽有限公司',bank:'103',branch:'0064',account:'0064306003931',tax:''},
+      {name:'順益企業有限公司',bank:'012',branch:'',account:'709102003496',tax:''},
+      {name:'巨金機電有限公司',bank:'005',branch:'0935',account:'093001013228',tax:''},
+      {name:'益昌氣體有限公司',bank:'007',branch:'',account:'24510016832',tax:''},
+      {name:'中國銲條機械股份有限公司',bank:'803',branch:'0814',account:'081100003171',tax:''},
+      {name:'騰翔氣體有限公司',bank:'008',branch:'5221',account:'522100123662',tax:''},
+      {name:'北邑運輸有限公司',bank:'008',branch:'1991',account:'199100016320',tax:''},
+      {name:'中原氣體有限公司',bank:'006',branch:'',account:'0210898002629',tax:''},
+      {name:'裕升起重行',bank:'776',branch:'',account:'04110706609',tax:''},
+      {name:'興偉五金有限公司',bank:'007',branch:'1314',account:'13110441006',tax:''},
+      {name:'宏達全球股份有限公司',bank:'007',branch:'2034',account:'20310037672',tax:''},
+      {name:'詠達鋼業',bank:'011',branch:'',account:'52102000034019',tax:''},
+      {name:'全穩實業股份有限公司',bank:'011',branch:'',account:'52102000036998',tax:''},
+      {name:'皓鑫鋼業有限公司',bank:'009',branch:'9356',account:'93560101223100',tax:''},
+      {name:'日立昇起重工程行',bank:'807',branch:'',account:'13801800035376',tax:''},
+      {name:'各保企業有限公司',bank:'013',branch:'0213',account:'021035006084',tax:''},
+      {name:'揚億機械五金',bank:'147',branch:'',account:'3720005320',tax:''},
+      {name:'梧鳳焊材工業股份有限公司',bank:'050',branch:'608',account:'56012130622',tax:'22582888'},
     ];
-    var VDB_KEY='hs26_shared_vendors_db';
-    var VENDORS_DB=store_get(VDB_KEY);
-    if(!VENDORS_DB){VENDORS_DB=VDB_DEFAULT;store_set(VDB_KEY,VENDORS_DB);supa_set(VDB_KEY,'shared','vendors_db',VENDORS_DB);}
-    function saveVDB(){store_set(VDB_KEY,VENDORS_DB);supa_set(VDB_KEY,'shared','vendors_db',VENDORS_DB);}
-
-    function copyCell(text){
-      if(!text)return;
-      navigator.clipboard.writeText(text).then(function(){
-        var toast=div({style:{position:'fixed',bottom:'20px',left:'50%',transform:'translateX(-50%)',background:'#1a1a1a',color:'#fff',padding:'8px 18px',borderRadius:'8px',fontSize:'13px',zIndex:999,opacity:'1',transition:'opacity 0.3s'}});
-        toast.textContent='已複製：'+text;document.body.appendChild(toast);
-        setTimeout(function(){toast.style.opacity='0';setTimeout(function(){document.body.removeChild(toast);},300);},1500);
-      }).catch(function(){
-        var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
-        document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
-        var toast=div({style:{position:'fixed',bottom:'20px',left:'50%',transform:'translateX(-50%)',background:'#1a1a1a',color:'#fff',padding:'8px 18px',borderRadius:'8px',fontSize:'13px',zIndex:999}});
-        toast.textContent='已複製：'+text;document.body.appendChild(toast);
-        setTimeout(function(){document.body.removeChild(toast);},1500);
-      });
-    }
-
-    function showVdbModal(editId){
-      var existing=editId?VENDORS_DB.find(function(v){return v.id===editId;}):null;
-      var form={name:'',bank:'',branch:'',account:'',tax:''};
-      if(existing)Object.assign(form,existing);
-      var ov2=div({class:'ov'});
-      var md=div({class:'modal-sm'});
-      md.appendChild(div({style:{fontWeight:'700',fontSize:'15px',marginBottom:'16px'}},editId?'編輯廠商資料':'新增廠商'));
-      var fg=div({class:'fg'});
-      function vdbInp(lbText,key,full){
-        var el=make('input',{type:'text',value:form[key]||'',placeholder:lbText});
-        el.addEventListener('input',function(e){form[key]=e.target.value;});
-        var w=div({style:full?{gridColumn:'1/-1'}:{}});
-        w.appendChild(make('label',{style:{fontSize:'11px',color:'#888',marginBottom:'3px',display:'block'}},lbText));
-        w.appendChild(el);fg.appendChild(w);
-      }
-      vdbInp('廠商名稱','name',true);
-      vdbInp('所屬銀行代碼','bank',false);
-      vdbInp('分行代碼','branch',false);
-      vdbInp('銀行帳戶','account',true);
-      vdbInp('統一編號','tax',true);
-      md.appendChild(fg);
-      var btns=div({style:{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'16px'}});
-      btns.appendChild(ghostBtn('取消',function(){document.body.removeChild(ov2);}));
-      btns.appendChild(mkBtn(editId?'儲存':'新增',accent,'#fff',function(){
-        if(!form.name.trim()){alert('請填入廠商名稱');return;}
-        if(editId){
-          VENDORS_DB=VENDORS_DB.map(function(v){return v.id===editId?Object.assign({},v,form):v;});
-        }else{
-          form.id='vdb_'+Date.now();
-          VENDORS_DB=VENDORS_DB.concat([form]);
-        }
-        saveVDB();document.body.removeChild(ov2);render();
-      }));
-      md.appendChild(btns);ov2.appendChild(md);
-      ov2.addEventListener('click',function(e){if(e.target===ov2)document.body.removeChild(ov2);});
-      document.body.appendChild(ov2);
-    }
-
     var vdbSearch=ST.vdbSearch||'';
     var filtered=VENDORS_DB.filter(function(v){
       if(!vdbSearch)return true;
       return (v.name+v.bank+v.branch+v.account+v.tax).indexOf(vdbSearch)>=0;
     });
     var topRow=div({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}});
-    var leftTop=div({style:{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}});
-    leftTop.appendChild(div({style:{fontWeight:'600',fontSize:'14px'}},'廠商轉帳資料'));
-    var si=make('input',{type:'text',placeholder:'搜尋廠商名稱、帳號...',style:{width:'200px'},value:vdbSearch});
+    topRow.appendChild(div({style:{fontWeight:'600',fontSize:'14px'}},'廠商轉帳資料'));
+    var si=make('input',{type:'text',placeholder:'搜尋廠商名稱、帳號...',style:{width:'220px'},value:vdbSearch});
     si.addEventListener('input',function(e){ST.vdbSearch=e.target.value;render();});
-    leftTop.appendChild(si);
-    topRow.appendChild(leftTop);
-    topRow.appendChild(mkBtn('+ 新增廠商',accent,'#fff',function(){showVdbModal(null);}));
+    topRow.appendChild(si);
     main.appendChild(topRow);
-    main.appendChild(div({style:{fontSize:'11px',color:'#888',marginBottom:'8px'}},'點擊資料欄位可複製內容'));
+    main.appendChild(div({style:{fontSize:'11px',color:'#888',marginBottom:'8px'}},'點擊任何欄位可複製內容'));
     var card=div({class:'card'});
     var ow=div({style:{overflowX:'auto'}});
     var tbl=make('table',{class:'tbl'});
@@ -948,16 +899,41 @@ function render(){
       th({style:{minWidth:'60px'}},'所屬銀行'),
       th({style:{minWidth:'60px'}},'分行'),
       th({style:{minWidth:'160px'}},'銀行帳戶'),
-      th({style:{minWidth:'90px'}},'統編'),
-      th({style:{minWidth:'70px'}},'操作')
+      th({style:{minWidth:'90px'}},'統編')
     )));
     var tbody=make('tbody');
-    if(!filtered.length)tbody.appendChild(tr(make('td',{colspan:6,style:{textAlign:'center',color:'#888',padding:'28px'}},'查無資料')));
+    if(!filtered.length)tbody.appendChild(tr(make('td',{colspan:5,style:{textAlign:'center',color:'#888',padding:'28px'}},'查無資料')));
+
+    function copyCell(text){
+      if(!text)return;
+      navigator.clipboard.writeText(text).then(function(){
+        // 顯示複製成功提示
+        var toast=div({style:{position:'fixed',bottom:'20px',left:'50%',transform:'translateX(-50%)',background:'#1a1a1a',color:'#fff',padding:'8px 18px',borderRadius:'8px',fontSize:'13px',zIndex:999,opacity:'1',transition:'opacity 0.3s'}});
+        toast.textContent='已複製：'+text;
+        document.body.appendChild(toast);
+        setTimeout(function(){toast.style.opacity='0';setTimeout(function(){document.body.removeChild(toast);},300);},1500);
+      }).catch(function(){
+        // 降版複製方式
+        var ta=document.createElement('textarea');
+        ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+        document.body.appendChild(ta);ta.select();document.execCommand('copy');
+        document.body.removeChild(ta);
+        var toast=div({style:{position:'fixed',bottom:'20px',left:'50%',transform:'translateX(-50%)',background:'#1a1a1a',color:'#fff',padding:'8px 18px',borderRadius:'8px',fontSize:'13px',zIndex:999}});
+        toast.textContent='已複製：'+text;
+        document.body.appendChild(toast);
+        setTimeout(function(){document.body.removeChild(toast);},1500);
+      });
+    }
 
     function makeCell(text,isAccount){
       var c=td({style:{cursor:text?'pointer':'default',userSelect:'text'}},text||'-');
       if(text){
-        if(isAccount){c.style.fontFamily='monospace';c.style.fontSize='13px';c.style.fontWeight='600';c.style.color='#185FA5';}
+        if(isAccount){
+          c.style.fontFamily='monospace';
+          c.style.fontSize='13px';
+          c.style.fontWeight='600';
+          c.style.color='#185FA5';
+        }
         c.title='點擊複製';
         c.addEventListener('click',function(){copyCell(text);});
         c.addEventListener('mouseenter',function(){c.style.background='#EEF6FF';});
@@ -967,18 +943,24 @@ function render(){
     }
 
     filtered.forEach(function(v){
-      var editB=document.createElement('button');editB.textContent='✎';editB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#888;cursor:pointer;margin-right:3px;';
-      editB.addEventListener('click',(function(id){return function(){showVdbModal(id);};})(v.id));
-      var delB=document.createElement('button');delB.textContent='✕';delB.style.cssText='background:transparent;border:0.5px solid #ccc;border-radius:6px;padding:2px 6px;font-size:10px;color:#A32D2D;cursor:pointer;';
-      delB.addEventListener('click',(function(id,name){return function(){
-        if(!confirm('確定刪除「'+name+'」？'))return;
-        VENDORS_DB=VENDORS_DB.filter(function(x){return x.id!==id;});
-        saveVDB();render();
-      };})(v.id,v.name));
-      var opTd=td({});opTd.appendChild(editB);opTd.appendChild(delB);
-      tbody.appendChild(tr(makeCell(v.name,false),makeCell(v.bank,false),makeCell(v.branch,false),makeCell(v.account,true),makeCell(v.tax,false),opTd));
+      tbody.appendChild(tr(
+        makeCell(v.name,false),
+        makeCell(v.bank,false),
+        makeCell(v.branch,false),
+        makeCell(v.account,true),
+        makeCell(v.tax,false)
+      ));
     });
     tbl.appendChild(tbody);ow.appendChild(tbl);card.appendChild(ow);main.appendChild(card);
+  }
+    var mg=div({class:'mg'});
+    mg.appendChild(metric('已收款','NT$ '+fmt(totalIncome),accent));
+    mg.appendChild(metric('公司固定支出','NT$ '+fmt(totalCompanyExp),'#E24B4A'));
+    mg.appendChild(metric('工地損益','NT$ '+fmt(grandProfit),grandProfit>=0?'#378ADD':'#E24B4A'));
+    mg.appendChild(metric('總損益','NT$ '+fmt(grandProfit-totalCompanyExp),'#6B5EA8'));
+    mg.appendChild(metric('每人可分','NT$ '+fmt(Math.round((grandProfit-totalCompanyExp)/2)),'#BA7517'));
+    main.appendChild(mg);
+    main.appendChild(div({class:'card',style:{textAlign:'center',color:'#888',fontSize:'13px',padding:'20px'}},'詳細各工地損益一覽請至「總覽」頁面查看'));
   }
 
   app.appendChild(main);

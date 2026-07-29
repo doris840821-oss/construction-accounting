@@ -218,12 +218,11 @@ function initDefaultData(co){
   store_set(initKey,true);
 }
 
-function autoAddMonthlyExpenses(co){
-  if(co!=='竑順')return;
+function autoAddMonthlyExpenses(co,existing){
+  // 只在竑順執行，existing 是已從 Supabase 同步的最新資料
+  if(co!=='竑順')return existing;
   var now=new Date();
-  var existing=store_get(mk(co,'company_exp'))||[];
   var fixed=[{item:'董事長薪水',amount:'50000'},{item:'公司租金',amount:'10000'},{item:'會計費用',amount:'40000'}];
-  // 從 2026-01 補到當月
   var startYear=2026,startMonth=1;
   var endYear=now.getFullYear(),endMonth=now.getMonth()+1;
   var toAdd=[];
@@ -237,8 +236,12 @@ function autoAddMonthlyExpenses(co){
     if(y===endYear&&m===endMonth)break;
     m++;if(m>12){m=1;y++;}
   }
-  if(!toAdd.length)return;
-  store_set(mk(co,'company_exp'),toAdd.concat(existing));
+  if(!toAdd.length)return existing;
+  var merged=toAdd.concat(existing);
+  // 存回 localStorage 和 Supabase
+  store_set(mk(co,'company_exp'),merged);
+  supa_set(mk(co,'company_exp'),co,'company_exp',merged);
+  return merged;
 }
 
 var AUTO_SYNC_TIMER=null;
@@ -255,8 +258,7 @@ keepSupabaseAlive();
 setInterval(keepSupabaseAlive, 23*60*60*1000);
 function loadAll(co){
   initDefaultData(co);
-  autoAddMonthlyExpenses(co);
-  // 先用 localStorage 快速顯示
+  // 先用 localStorage 快速顯示（autoAddMonthlyExpenses 會在 Supabase 同步後才執行）
   var p={co:co,view:'dashboard',modal:null,checkFilter:'全部',expFilter:'全部',filterSite:'全部',splitSite:'全部',search:''};
   [['invoices','invoices',[]],['expenses','expItems',[]],['company_exp','companyExp',[]],
    ['splits','splits',[]],['sites','sites',DEF_SITES],['vendors','vendors',DEF_VENDORS]
@@ -288,6 +290,11 @@ async function syncFromSupabase(co){
       patch[field]=remote;
       hasUpdate=true;
     }
+  }
+  // Supabase 同步完後，再執行自動補月份（確保拿到最新資料）
+  if(patch.companyExp!==undefined){
+    var updated=autoAddMonthlyExpenses(co,patch.companyExp);
+    if(updated!==patch.companyExp){patch.companyExp=updated;hasUpdate=true;}
   }
   if(hasUpdate&&ST.co===co){
     Object.assign(ST,patch);
